@@ -16,9 +16,9 @@ Human contributors: see [CONTRIBUTING.md](CONTRIBUTING.md). The rules below appl
   instead of reading the codebase.
 - **[docs/api.md](docs/api.md)** - the public surface other mods compile against.
 - **[docs/invariants.md](docs/invariants.md)** - rules that must not be broken, each with an anchor.
-- **`decompiled/`** - local, read-only decompile of the game (not in the repo). Generate it with
-  [decompiled/README.md](decompiled/README.md), which also covers reading the scene
-  (`tools/unityscene.py`) and the `assetripper/` export.
+- **`decompiled/`, `assetripper/`** - local, read-only copies of the game's code and assets (not in
+  the repo). [docs/game-sources.md](docs/game-sources.md) says which answers what, how to generate
+  them, and how to read the scene (`tools/unityscene.py`).
 - **`LAST_SESSION.md`** - local, uncommitted hand-off: what the last session changed and what is
   still unverified.
 

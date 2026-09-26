@@ -13,6 +13,7 @@ How the library works and why it is built the way it is. For installing, see the
 | [probes.md](probes.md) | floor heights, line of sight, doorways (`NavProbe`) |
 | [doors.md](doors.md) | which doors NPCs open or route around, door codes, doorway sensors; how an agent opens and closes them |
 | [game-model.md](game-model.md) | how the game itself works: rooms, the moving world, gates, the Breathless |
+| [game-sources.md](game-sources.md) | reading the game's code, scene and assets: the decompile, `unityscene.py`, AssetRipper |
 | [lifecare.md](lifecare.md) | NPCs on the ship's lifecare terminal |
 | [interaction.md](interaction.md) | the talk window: which NPC answers Interact, and the panel |
 | [logging.md](logging.md) | debug levels, log sources and tags, rules for adding logs |
