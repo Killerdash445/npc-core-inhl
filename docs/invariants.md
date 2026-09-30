@@ -59,6 +59,18 @@ replaces a non-answer, so it cannot change a case that already works.
 
 **Enforced in.** `NavProbe.TryAnyLayerFloor`, called from `TryFloorHeight`.
 
+### one-hit-per-collider
+
+**Rule.** A floor hit above the point is not dropped: its collider is re-cast from just over the
+point, and whatever that finds below is its surface.
+
+**Why.** A multi-hit ray reports only the first surface of each collider. The ship's airlock
+(`ShipAirlock`) is one mesh with walls, ceiling and floor; the ray from 2 m up met its ceiling,
+which is over the point, and never reported its floor. With no floor the NPC kept the vessel it came
+from, so docked in the airlock it was not aboard, and in the Shipyard corridor it was still `ship`.
+
+**Enforced in.** `NavProbe.SurfaceUnderFeet`, called from `ProbeFloor` and `TryAnyLayerFloor`.
+
 ### unprobeable-floors-keep-the-last-hover
 
 **Rule.** When no floor is found under a node, `NodeFloorY` uses that node's last measured

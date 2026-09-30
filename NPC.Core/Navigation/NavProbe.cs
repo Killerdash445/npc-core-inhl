@@ -218,6 +218,10 @@ namespace NPC.Core.Navigation
         // ship and tube geometry overlap, and the floor itself was being dropped.
         private static readonly RaycastHit[] LosHits = new RaycastHit[64];
         private static readonly RaycastHit[] FloorHits = new RaycastHit[64];
+        // The floor ray: from 2 m over the point to 4 m under it; a surface up to 5 cm over it still counts.
+        private const float FloorOriginAbove = 2f;
+        private const float FloorBelowFeet = 4f;
+        private const float FloorAboveFeet = 0.05f;
         private static float _truncationWarnedAt = -999f;
 
         // One frame of per-collider filter answers and per-point floors: a plan asks about the same
@@ -728,7 +732,7 @@ namespace NPC.Core.Navigation
         /// Depth-limited hierarchy path. Several gates share the name 'Door02', so the
         /// name alone cannot identify one in a log line.
         /// </summary>
-        private static string ScenePath(Transform t)
+        internal static string ScenePath(Transform t)
         {
             string path = t.name;
             Transform parent = t.parent;
@@ -1133,22 +1137,22 @@ namespace NPC.Core.Navigation
             bool hasFloor = false;
             float anySolidY = 0f;
             bool hasAnySolid = false;
-            Vector3 floorOrigin = p + Vector3.up * 2f;
-            int floorCount = Physics.RaycastNonAlloc(floorOrigin, Vector3.down, FloorHits, 6f,
+            Vector3 floorOrigin = p + Vector3.up * FloorOriginAbove;
+            int floorCount = Physics.RaycastNonAlloc(floorOrigin, Vector3.down, FloorHits, FloorOriginAbove + FloorBelowFeet,
                 ProbeLayers, QueryTriggerInteraction.Ignore);
             WarnIfTruncated(floorCount, "floor");
             for (int i = 0; i < floorCount; i++)
             {
-                if (FloorHits[i].point.y > p.y + 0.05f) continue;
-
                 if (IsBodyCollider(FloorHits[i].collider))
                 {
                     continue; // nobody stands on a person
                 }
 
-                if (!hasAnySolid || FloorHits[i].point.y > anySolidY)
+                if (!SurfaceUnderFeet(FloorHits[i], p, out float y)) continue;
+
+                if (!hasAnySolid || y > anySolidY)
                 {
-                    anySolidY = FloorHits[i].point.y;
+                    anySolidY = y;
                     anySolid = FloorHits[i].collider;
                     hasAnySolid = true;
                 }
@@ -1156,9 +1160,9 @@ namespace NPC.Core.Navigation
                 // docs/invariants.md#floors-ignore-the-gate-frame-rule
                 if (IsPassableInterface(FloorHits[i].collider)) continue;
 
-                if (!hasFloor || FloorHits[i].point.y > floorY)
+                if (!hasFloor || y > floorY)
                 {
-                    floorY = FloorHits[i].point.y;
+                    floorY = y;
                     floorCollider = FloorHits[i].collider;
                     hasFloor = true;
                 }
@@ -1179,6 +1183,23 @@ namespace NPC.Core.Navigation
             // "no floor" makes the two sides of a level test fall back to different bases.
             // docs/invariants.md#a-missing-floor-is-a-last-resort-not-an-answer
             return TryAnyLayerFloor(p, floorOrigin, out floorY, out floorCollider);
+        }
+
+        /// <summary>
+        /// The hit's collider's surface at or below `p`. A multi-hit ray reports one hit per collider, so a
+        /// room mesh whose ceiling is hit first hides its own floor: re-cast that collider from the feet.
+        /// docs/invariants.md#one-hit-per-collider
+        /// </summary>
+        private static bool SurfaceUnderFeet(RaycastHit hit, Vector3 p, out float y)
+        {
+            y = hit.point.y;
+            if (y <= p.y + FloorAboveFeet) return true;
+
+            Ray fromFeet = new(new Vector3(p.x, p.y + FloorAboveFeet, p.z), Vector3.down);
+            if (!hit.collider.Raycast(fromFeet, out RaycastHit below, FloorBelowFeet + FloorAboveFeet)) return false;
+
+            y = below.point.y;
+            return true;
         }
 
         /// <summary>
@@ -1204,18 +1225,18 @@ namespace NPC.Core.Navigation
             floorY = p.y;
             floorCollider = null;
             bool found = false;
-            int count = Physics.RaycastNonAlloc(origin, Vector3.down, FloorHits, 6f,
+            int count = Physics.RaycastNonAlloc(origin, Vector3.down, FloorHits, FloorOriginAbove + FloorBelowFeet,
                 ~0, QueryTriggerInteraction.Ignore);
             WarnIfTruncated(count, "wide floor");
             for (int i = 0; i < count; i++)
             {
-                if (FloorHits[i].point.y > p.y + 0.05f) continue;
-
                 if (IsBodyCollider(FloorHits[i].collider)) continue;
 
-                if (!found || FloorHits[i].point.y > floorY)
+                if (!SurfaceUnderFeet(FloorHits[i], p, out float y)) continue;
+
+                if (!found || y > floorY)
                 {
-                    floorY = FloorHits[i].point.y;
+                    floorY = y;
                     floorCollider = FloorHits[i].collider;
                     found = true;
                 }

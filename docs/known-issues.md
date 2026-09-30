@@ -45,18 +45,6 @@ but the goal's floor is probed. An ungrounded player (mid-jump, on stair treads)
 surface below. Fix: pass the goal floor in (`FloorUnderPlayer`). This changes the `FindPath`
 signature - see [architecture.md §5](architecture.md#5-change-impact---what-else-to-update).
 
-### The ship's airlock does not count as aboard
-
-After an undock, an NPC standing in the player ship's airlock was not aboard by
-`NpcAgent.IsAboardPlayerShip` (YourBuddy logged `suit fetch: I only fetch from aboard your ship` there),
-though the airlock is a ship room (`SpaceShip/Rooms/ShipAirlock`). So a mod's aboard-only logic -
-YourBuddy's dangerous-air check - ignores it while it stands there.
-
-- **Unproven:** which answer `NpcVessels.FloorOwner` gives under the airlock chamber, and why (the
-  collar geometry, or its colliders switching with the dock). Log the floor collider it hits there.
-- YourBuddy's suffocation reflex reads the NPC's own threat (`NpcAgent.LifeInDanger`), so it does
-  not depend on this.
-
 ### The 0.85 m carve-out floor is wider than any real doorway
 
 Every door opening is 0.5625 m + margin, but the clamp floor is 0.85 m, so ~0.29 m of wall either

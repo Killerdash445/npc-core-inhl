@@ -95,6 +95,8 @@ or below `p`:
 
 - a body is never floor, and neither is a collar, airlock or door leaf. The gate-frame rule is not
   applied ([floors-ignore-the-gate-frame-rule](invariants.md#floors-ignore-the-gate-frame-rule));
+- a hit above `p` is re-cast on its own collider from `p`, since a ray reports one hit per collider
+  ([one-hit-per-collider](invariants.md#one-hit-per-collider));
 - if the filter rejects everything, the highest solid non-body hit is used
   ([doorway-floor-survives-the-filter](invariants.md#doorway-floor-survives-the-filter));
 - if nothing was hit, it casts once more across every layer

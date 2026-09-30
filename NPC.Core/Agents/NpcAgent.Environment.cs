@@ -224,13 +224,26 @@ namespace NPC.Core.Agents
         /// on undock, which is what parks the NPC in place.
         /// docs/invariants.md#an-npc-rides-its-own-floor
         /// </summary>
+        private float noFloorLoggedAt = -999f;
+
         private void UpdateOwnerAnchor()
         {
             NpcVessels.FloorOwner(transform.position, out string? owner, out Transform? anchor);
             // No floor to judge by: keep the frame we have rather than guess a new one.
-            if (owner == null || owner == CurrentOwner) return;
+            if (owner == null)
+            {
+                if (CurrentOwner != null && Time.time - noFloorLoggedAt >= 10f)
+                {
+                    noFloorLoggedAt = Time.time;
+                    NpcLog.Log.LogInfo("[ai] No floor under " + transform.position + " - still riding '" + CurrentOwner + "'");
+                }
+                return;
+            }
+            if (owner == CurrentOwner) return;
 
             CurrentOwner = owner;
+            string floor = NavProbe.TryFloorCollider(transform.position, out Collider? hit) ? NavProbe.ScenePath(hit.transform) : "none";
+            NpcLog.Log.LogInfo("[ai] Floor '" + floor + "' is " + owner + "'s");
             if (transform.parent == anchor) return;
 
             transform.SetParent(anchor, true);
