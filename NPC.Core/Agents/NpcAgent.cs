@@ -40,6 +40,11 @@ namespace NPC.Core.Agents
         /// </summary>
         public bool Asleep { get; set; }
         public float MoveSpeed { get; set; } = 3.5f;
+
+        /// <summary>
+        /// The speed it walks at now: MoveSpeed times the settings' SpeedFactor (a worn suit).
+        /// </summary>
+        public float WalkSpeed => MoveSpeed * Mathf.Clamp(settings.SpeedFactor, 0.05f, 1f);
         /// <summary>
         /// Which vessel's frame it is riding ("ship", "world" or a station name).
         /// docs/invariants.md#an-npc-rides-its-own-floor
@@ -201,7 +206,7 @@ namespace NPC.Core.Agents
             itemBlocker = body.ItemBlocker;
             footstepEvents = body.FootstepEvents;
             MoveSpeed = settings.MoveSpeed;
-            Hands = new NpcHands(this, itemBlocker, GroundPos, () => currentRoomRef);
+            Hands = new NpcHands(this, itemBlocker, GroundPos, () => ItemParentHere());
         }
 
         /// <summary>
@@ -425,7 +430,7 @@ namespace NPC.Core.Agents
             else loggedStairLegEnd = Vector3.zero;
 
             // Sidestep maneuver when stuck against an obstacle.
-            if (wantMove && Time.time < sidestepUntil) desired = sidestepDirection * (MoveSpeed * 0.8f);
+            if (wantMove && Time.time < sidestepUntil) desired = sidestepDirection * (WalkSpeed * 0.8f);
 
             desired = brain.Constrain(desired, ref wantMove);
 

@@ -44,6 +44,13 @@ namespace NPC.Core.Agents
         /// </summary>
         private Vector3 HandleDoors(Vector3 desired, ref bool wantMove)
         {
+            // A swinging gate it opened: stand clear of the leaf until it has swung.
+            if (Time.time < swingingGateUntil)
+            {
+                wantMove = false;
+                return Vector3.zero;
+            }
+
             if (waitingGate != null)
             {
                 if (waitingGate.FullyOpened)
@@ -77,6 +84,11 @@ namespace NPC.Core.Agents
                         Gate gate = hit.collider.GetComponentInParent<Gate>();
                         lastDoorRay = $"'{hit.collider.name}' at {hit.distance:0.00}m, " + (gate == null ? "not a gate"
                             : $"gate '{gate.name}' {(gate.Opened ? "open" : "shut")}{(gate.Locked ? ", locked" : "")}");
+                        if (gate == null && TryOpenSwingingGate(hit.collider))
+                        {
+                            wantMove = false;
+                            return Vector3.zero;
+                        }
                         // ReSharper disable once MergeIntoPattern
                         if (gate != null && gate.gameObject.activeInHierarchy && !gate.Locked && !gate.Opened)
                         {
@@ -106,6 +118,28 @@ namespace NPC.Core.Agents
             return desired;
         }
 
+
+        private float swingingGateUntil = 0f;
+        /// <summary>
+        /// How long a swinging gate's leaf takes to open: Door.openSpeed is 1.2 per second on the fence gates.
+        /// </summary>
+        private const float SwingingGateOpenSeconds = 1f;
+
+        /// <summary>
+        /// A shut walk-through gate that swings on a hinge (a <c>Door</c>, not a <c>Gate</c>): opened
+        /// as the player's Interact does it, and left open. True when one was opened now.
+        /// docs/doors.md#swinging-gates
+        /// </summary>
+        private bool TryOpenSwingingGate(Collider hit)
+        {
+            Door? door = hit.GetComponentInParent<Door>();
+            if (door == null || door.Opened || !NpcDoors.IsSwingingGate(door)) return false;
+
+            door.Open();
+            swingingGateUntil = Time.time + SwingingGateOpenSeconds;
+            NpcLog.Log.LogInfo("[ai] Opening gate '" + door.gameObject.name + "'");
+            return true;
+        }
 
         private void LogClosedToPlayerRefusal(Gate gate)
         {

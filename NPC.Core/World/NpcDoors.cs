@@ -205,6 +205,15 @@ namespace NPC.Core.World
         }
 
         /// <summary>
+        /// A walk-through gate on a hinge: the FuelStation's fence gates (<c>Door</c> + <c>Interactable</c>,
+        /// whose interact calls Door.Switch). Every other <c>Door</c> is a cabinet, chest, fridge or
+        /// locker leaf, which only the errand that uses the container opens. docs/doors.md#swinging-gates
+        /// </summary>
+        public static bool IsSwingingGate(Door door) =>
+            door != null && door.gameObject.activeInHierarchy &&
+            door.gameObject.name.StartsWith("FenceGate", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
         /// Should the path search route around this gate? Only one that will still be shut when the NPC
         /// arrives: locked, closed to the player, or a pin door no NPC has the code for.
         /// docs/invariants.md#opening-is-not-passing
@@ -216,8 +225,12 @@ namespace NPC.Core.World
             if (gate.Opened) return false;
 
             if (gate.Locked) return true;
-            // An airlock or docking gate is the only way between ship and station and the player opens
-            // it. Refusing to open one is not a reason to refuse to walk through it.
+            // An airlock's door stays shut until a cycle or a docking opens it - the ship's own
+            // too, whose outer door leads to space once undocked:
+            // docs/invariants.md#an-airlock-is-crossed-by-its-cycle
+            if (IsAirlockDoor(gate)) return true;
+            // A docking hatch is the only way between ship and station and the game opens it.
+            // Refusing to open one is not a reason to refuse to walk through it.
             if (IsAirlockGate(gate)) return false;
             if (WhyClosedToPlayer(gate) != null) return true;
 
@@ -317,6 +330,37 @@ namespace NPC.Core.World
             return (pf - (af + ab * t)).magnitude;
         }
 
+        /// <summary>
+        /// True when a->b crosses an airlock's inner, outer or hatch gate, open or shut. Bound once
+        /// as NavGraph.SegmentCrossesAirlockGate: a straight finish across an open outer door is how
+        /// an NPC not allowed outside would leave anyway. docs/navigation.md#node-types
+        /// </summary>
+        internal static bool SegmentCrossesAirlockGate(Vector3 a, Vector3 b)
+        {
+            RefreshAirlocks();
+            if (_airlocks == null) return false;
+
+            foreach (Airlock airlock in _airlocks)
+            {
+                if (airlock == null) continue;
+
+                Gate? outer = GameInternals.AirlockAccess.GetOuterDoor(airlock);
+                Gate? inner = GameInternals.AirlockAccess.GetInnerDoor(airlock);
+                Gate? hatch = GameInternals.AirlockAccess.GetHatch(airlock);
+
+                if (Crosses(a, b, outer) || Crosses(a, b, inner) || Crosses(a, b, hatch)) return true;
+            }
+            return false;
+        }
+
+        private static bool Crosses(Vector3 a, Vector3 b, Gate? gate)
+        {
+            if (gate == null) return false;
+            if (FlatDistanceToSegment(gate.transform.position, a, b) > DoorBroadPhaseRadius) return false;
+
+            return NavProbe.SegmentCrossesGate(gate, a, b, DoorBlockPadding);
+        }
+
         // ------------------------------------------------------------------
         // Airlocks
         // ------------------------------------------------------------------
@@ -341,22 +385,116 @@ namespace NPC.Core.World
         }
 
         /// <summary>
-        /// Whether a room is an airlock's chamber, which is never a safe spot. docs/known-issues.md
+        /// An inner or outer door of any airlock, the player ship's included.
         /// </summary>
-        public static bool RoomIsAirlockChamber(Room? room)
+        private static bool IsAirlockDoor(Gate gate)
         {
-            if (room == null) return false;
-
             RefreshAirlocks();
             if (_airlocks == null) return false;
 
             foreach (Airlock airlock in _airlocks)
             {
-                Room? connected = GameInternals.AirlockAccess.GetConnectedRoom(airlock);
-                if (connected == room) return true;
+                if (airlock == null) continue;
+
+                if (GameInternals.AirlockAccess.GetOuterDoor(airlock) == gate) return true;
+
+                if (GameInternals.AirlockAccess.GetInnerDoor(airlock) == gate) return true;
             }
             return false;
         }
+
+        private static Airlock? ShipAirlock()
+        {
+            GameManager? gm = GameManager.Instance;
+            return gm != null && gm.PlayerShip != null ? gm.PlayerShip.Airlock : null;
+        }
+
+        /// <summary>
+        /// Without a readable chamber volume: this near the airlock's own position is in its chamber.
+        /// </summary>
+        private const float ChamberFallbackRadius = 1.5f;
+        private const float ChamberFallbackHeight = 2f;
+        private static bool _chamberVolumeMissingLogged;
+
+        /// <summary>
+        /// The airlock open to space whose chamber holds `point` (the volume its PlayerDetector watches
+        /// for the player), or null. docs/invariants.md#an-airlock-is-crossed-by-its-cycle
+        /// </summary>
+        public static Airlock? ChamberAt(Vector3 point) => ChamberAt(point, withShip: false);
+
+        /// <summary>
+        /// `withShip`: the player ship's airlock counts too. docs/invariants.md#no-safe-spot-in-a-chamber
+        /// </summary>
+        internal static Airlock? ChamberAt(Vector3 point, bool withShip)
+        {
+            RefreshAirlocks();
+            if (_airlocks == null) return null;
+
+            Airlock? shipAirlock = withShip ? null : ShipAirlock();
+            foreach (Airlock airlock in _airlocks)
+            {
+                if (airlock == null || airlock == shipAirlock || !airlock.gameObject.activeInHierarchy) continue;
+
+                if (InChamber(airlock, point)) return airlock;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// The middle of an airlock's chamber: its PlayerDetector volume's centre. The airlock's own
+        /// transform is not there - it can sit by a door. Its transform when the volume is unreadable.
+        /// </summary>
+        public static Vector3 ChamberCenter(Airlock airlock)
+        {
+            PlayerDetector? detector = GameInternals.AirlockAccess.GetPlayerDetector(airlock);
+            Collider? volume = detector != null ? detector.GetComponent<Collider>() : null;
+            return volume != null && volume.enabled && volume.gameObject.activeInHierarchy
+                ? volume.bounds.center
+                : airlock.transform.position;
+        }
+
+        private static bool InChamber(Airlock airlock, Vector3 point)
+        {
+            PlayerDetector? detector = GameInternals.AirlockAccess.GetPlayerDetector(airlock);
+            Collider? volume = detector != null ? detector.GetComponent<Collider>() : null;
+            if (volume != null)
+            {
+                // A switched-off collider has no answer: an unloaded airlock holds nobody.
+                if (!volume.enabled || !volume.gameObject.activeInHierarchy) return false;
+
+                return (volume.ClosestPoint(point) - point).sqrMagnitude < 0.0025f;
+            }
+
+            if (!_chamberVolumeMissingLogged)
+            {
+                _chamberVolumeMissingLogged = true;
+                NpcLog.Log.LogWarning("[world] An airlock has no readable chamber volume - its chamber is taken as " +
+                                      ChamberFallbackRadius + " m around its centre");
+            }
+            Vector3 d = point - airlock.transform.position;
+            return Mathf.Abs(d.y) < ChamberFallbackHeight && new Vector2(d.x, d.z).sqrMagnitude < ChamberFallbackRadius * ChamberFallbackRadius;
+        }
+
+        /// <summary>
+        /// Which side a chamber belongs to now: the side whose door alone is open, as the game's cycle
+        /// moves the player (Airlock.Exit, Enter). False while both doors are shut or both open.
+        /// </summary>
+        public static bool TryChamberSide(Airlock airlock, out bool toSpace)
+        {
+            toSpace = false;
+            Gate? outer = GameInternals.AirlockAccess.GetOuterDoor(airlock);
+            Gate? inner = GameInternals.AirlockAccess.GetInnerDoor(airlock);
+            if (outer == null || inner == null || outer.Opened == inner.Opened) return false;
+
+            toSpace = outer.Opened;
+            return true;
+        }
+
+        /// <summary>
+        /// Always false: a chamber is no room (docs/game-model.md#an-airlock-moves-only-the-player).
+        /// </summary>
+        [System.Obsolete("A chamber is no room. Test a position with ChamberAt(point).")]
+        public static bool RoomIsAirlockChamber(Room? room) => false;
 
         private static void RefreshAirlocks()
         {

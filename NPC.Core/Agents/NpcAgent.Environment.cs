@@ -68,6 +68,9 @@ namespace NPC.Core.Agents
 
         private void UpdateRoomTracking()
         {
+            // Outside, a station doorway a wall away is not one the NPC walked through.
+            if (outside) return;
+
             IReadOnlyList<EntryDetector> detectors = NpcDoors.Detectors;
 
             EntryDetector? best = null;
@@ -116,11 +119,15 @@ namespace NPC.Core.Agents
                     SetForcedRoom(target);
                 }
 
-                // Never treat the inside of an airlock as a safe position.
-                if (!NpcDoors.RoomIsAirlockChamber(target)) RememberSafePosition(pos);
+                if (MaySaveSpotAt(pos)) RememberSafePosition(pos);
             }
         }
 
+
+        /// <summary>
+        /// No safe spot in an airlock chamber, the ship's included: a cycle may vent it.
+        /// </summary>
+        private static bool MaySaveSpotAt(Vector3 worldPos) => NpcDoors.ChamberAt(worldPos, withShip: true) == null;
 
         /// <summary>
         /// Records a spot known to be inside, in the frame the NPC is riding.
@@ -500,24 +507,32 @@ namespace NPC.Core.Agents
 
         private void UpdateSpaceState(Player? player)
         {
+            UpdateAirlockSide();
+
             GameManager gm = GameManager.Instance;
-            bool inSpace =
+            // The last trigger is a fall, not a place: an NPC 25m under the player is dropping
+            // into the void even when it is allowed outside.
+            bool fellBehind = player != null && player.Controller != null &&
+                              transform.position.y < player.Controller.CachedTransform.position.y - 25f;
+            bool inSpace = outside ||
                 (currentRoomRef != null && gm.SpaceRoom != null && currentRoomRef == gm.SpaceRoom) ||
                 (hasKnownRoom && currentEnvironmentRef == null) ||
-                (player != null && player.Controller != null &&
-                 transform.position.y < player.Controller.CachedTransform.position.y - 25f);
+                fellBehind;
 
             currentlyInSpace = inSpace;
 
-            if (inSpace && settings.KeepOutOfSpace) ReturnFromSpace(player);
+            // A suited NPC may be outside (a surface walk); a fall below the player is still a rescue.
+            if (inSpace && settings.KeepOutOfSpace && (!settings.Suited || fellBehind)) ReturnFromSpace(player);
         }
 
         private void ReturnFromSpace(Player? player)
         {
             Vector3 target;
+            string where = "next to the player";
             if (hasSafePosition && TryRecallSafePosition(out Vector3 safe))
             {
                 target = safe;
+                where = "to its safe spot";
             }
             else if (player != null && player.Controller != null && !IsPlayerInSpace(player))
             {
@@ -533,7 +548,108 @@ namespace NPC.Core.Agents
 
             TeleportTo(target + Vector3.up * 0.1f, true);
             navPlan = null;
-            NpcLog.Log.LogWarning($"[ai] {Name} reached open space, teleported back inside");
+            NpcLog.Log.LogWarning($"[ai] {Name} reached open space, teleported back inside {where} {target}");
+            SetOutside(false, "teleported back inside");
+        }
+
+        /// <summary>
+        /// Outside a station's airlock, under open sky: the side an airlock's chamber gave it when
+        /// it last stood in one. docs/invariants.md#an-airlock-is-crossed-by-its-cycle
+        /// </summary>
+        public bool IsOutside => outside;
+
+        private bool outside;
+
+        /// <summary>
+        /// In a chamber, the NPC is on the side whose door alone stands open - what the game's cycle
+        /// does to the player. Out of one, the side it had holds.
+        /// </summary>
+        private void UpdateAirlockSide()
+        {
+            Airlock? chamber = NpcDoors.ChamberAt(transform.position);
+            if (chamber == null || !NpcDoors.TryChamberSide(chamber, out bool toSpace)) return;
+
+            // Coming in, the NPC is where Airlock.Enter puts the player: the room beside the chamber.
+            // Room tracking was off outside, and an airlock has no doorway sensor.
+            if (outside && !toSpace && GameInternals.AirlockAccess.GetConnectedRoom(chamber) is { } inside &&
+                inside != currentRoomRef)
+            {
+                currentRoomRef = inside;
+                hasKnownRoom = true;
+                SetForcedRoom(inside);
+            }
+            SetOutside(toSpace, "airlock '" + chamber.gameObject.name + "' is open to " + (toSpace ? "space" : "the inside"));
+        }
+
+        private Transform? itemParentCache;
+        private float itemParentCacheUntil;
+
+        /// <summary>
+        /// ItemParentAt for where the NPC stands, re-probed at most every 0.25 s: the hands ask each frame.
+        /// </summary>
+        private Transform? ItemParentHere()
+        {
+            if (Time.time < itemParentCacheUntil && itemParentCache != null) return itemParentCache;
+
+            itemParentCacheUntil = Time.time + 0.25f;
+            return itemParentCache = ItemParentAt(transform.position);
+        }
+
+        /// <summary>
+        /// The content parent an item at `pos` belongs in, by the floor under it - not by the tracked
+        /// room alone, which only changes at station doorways and is stale aboard the ship (none of
+        /// its rooms has a doorway sensor) and after an undock. Aboard: the tracked room if it is a
+        /// ship room, else the nearest one (the ship's rooms are never culled one by one). On a
+        /// station: the tracked room if it is that station's, else the station's interior, which only
+        /// goes with the whole station. docs/invariants.md#a-carried-item-belongs-to-the-room-its-carrier-is-in
+        /// </summary>
+        public Transform? ItemParentAt(Vector3 pos)
+        {
+            FloorOwnership floor = NpcVessels.FloorOwner(pos, out string? owner, out Transform? anchor);
+            GameManager? gm = GameManager.Instance;
+            SpaceShip? ship = gm != null ? gm.PlayerShip : null;
+            Room? tracked = currentRoomRef != null && currentRoomRef.gameObject.activeInHierarchy ? currentRoomRef : null;
+
+            if (floor == FloorOwnership.PlayerShip && ship != null && ship.Rooms != null)
+            {
+                Room? best = null;
+                float bestSqr = float.MaxValue;
+                foreach (CustomRoom room in ship.Rooms)
+                {
+                    if (room == null || !room.gameObject.activeInHierarchy || !room.EnabledStructure) continue;
+                    if (room == tracked) return room.ContentParent;
+
+                    float sqr = (room.transform.position - pos).sqrMagnitude;
+                    if (sqr < bestSqr)
+                    {
+                        bestSqr = sqr;
+                        best = room;
+                    }
+                }
+                return best != null ? best.ContentParent : null;
+            }
+
+            if (floor == FloorOwnership.Elsewhere)
+            {
+                if (tracked != null && NpcVessels.OwnerOfTransform(tracked.transform) == owner) return tracked.ContentParent;
+
+                return anchor;
+            }
+
+            // No floor to judge by: the tracked room is all there is.
+            return tracked != null ? tracked.ContentParent : null;
+        }
+
+        /// <summary>
+        /// Moves the NPC to a side of the airlocks: for a mod that walked it through one and knows
+        /// where it came out. Outside counts as space; only a suited NPC stays there.
+        /// </summary>
+        public void SetOutside(bool value, string why)
+        {
+            if (outside == value) return;
+
+            outside = value;
+            NpcLog.Log.LogInfo("[ai] " + Name + (value ? " is outside now - " : " is inside again - ") + why);
         }
 
         /// <summary>
@@ -562,6 +678,7 @@ namespace NPC.Core.Agents
             CurrentOwner = null;
             hasSafePosition = false;
             NpcLog.Log.LogWarning("[ai] Undocked with nothing underfoot - moved to the ship airlock");
+            SetOutside(false, "moved aboard");
         }
 
         /// <summary>
@@ -576,7 +693,7 @@ namespace NPC.Core.Agents
             Hands.Drop("the ship is unloading");
             brain.OnInterrupted("the ship is unloading");
             gameObject.SetActive(false);
-            NpcLog.Log.LogInfo("[ai] Player ship unloaded for a spacewalk - parked aboard");
+            NpcLog.Log.LogInfo("[ai] Player ship unloaded (a spacewalk, or you went into the station) - parked aboard");
         }
 
         internal void UnparkFromShip()
@@ -607,7 +724,7 @@ namespace NPC.Core.Agents
             hasMoveTarget = false;
             followStepOffUntil = 0f;
 
-            bool safeSpot = floorStands && !NpcDoors.RoomIsAirlockChamber(currentRoomRef);
+            bool safeSpot = floorStands && MaySaveSpotAt(transform.position);
             if (safeSpot) RememberSafePosition(transform.position);
             else hasSafePosition = false;
 
@@ -656,6 +773,13 @@ namespace NPC.Core.Agents
         }
 
         /// <summary>
+        /// The air is killing it now: its threat is lethal this tick or the next, or its death
+        /// counter has not wound down yet. A brain's cue to drop everything and survive.
+        /// docs/game-model.md#atmosphere-kills-by-the-players-rule
+        /// </summary>
+        public bool LifeInDanger => lifeThreat || pendingThreat >= LifeThreatLethal || deathCounter > 0;
+
+        /// <summary>
         /// The player's own death rule (HealthSystem.Tick), once per game tick: a threat of
         /// LifeThreatLethal or more counts up, anything less counts down.
         /// </summary>
@@ -698,6 +822,7 @@ namespace NPC.Core.Agents
 
             Environment? env = currentlyInSpace ? null : currentEnvironmentRef;
             string line = $"[ai] Air tick: NPC threat {lifeThreatLevel}, death {deathCounter}/{DeathCounterArmed}" +
+                          (settings.Suited ? ", suited" : "") +
                           (env != null ? $" (O2 {env.Data.Oxygen / 100f:0.0}%, {env.Data.Temperature / 100f:0.0}C)" : " (space)");
             if (player != null && health != null)
             {
@@ -731,10 +856,13 @@ namespace NPC.Core.Agents
 
         /// <summary>
         /// The threat the player's atmosphere buffs set (Suffocation, Hyperoxia, Cold, Heat in
-        /// Space/Player.cs), in the NPC's suit. No environment is space, and lethal.
+        /// Space/Player.cs), in the NPC's suit. No environment is space, and lethal. An isolated
+        /// suit reads flat 2200/2200 whatever the room, so it feels no band anywhere.
+        /// docs/game-model.md#atmosphere-kills-by-the-players-rule
         /// </summary>
         private int AtmosphereThreat(Environment? env)
         {
+            if (settings.Suited) return 0;
             if (env == null) return VacuumThreat;
 
             int oxygen = env.Data.Oxygen;

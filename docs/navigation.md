@@ -23,8 +23,24 @@ Every node has an `Owner`:
 Owner-local storage survives flight, docking and saves: the game moves the world around the ship
 ([never-cache-node-world-positions](invariants.md#never-cache-node-world-positions)).
 
-Nodes are `Ground` or `Stair`. `Stair` raises the off-level entry cap (`MaxStairDeltaY`) and is the
-one exception to [entry-seeds-on-own-deck](invariants.md#entry-seeds-on-own-deck).
+### Node types
+
+Nodes are `Ground`, `Stair` or `Outdoor` (editor key `T` cycles them). `Stair` raises the
+off-level entry cap (`MaxStairDeltaY`) and is the one exception to
+[entry-seeds-on-own-deck](invariants.md#entry-seeds-on-own-deck).
+
+An `Outdoor` node lies outside an airlock, under open sky - the chamber's own node included. Routing
+enters one only for a walk whose `mayGoOutside` is set: every default `FindPath` caller stays inside,
+and an agent passes its settings' `MayGoOutside` on follow, wander and goto - and hard `false` on
+flee, hide and errand reach plans, so nothing flees or runs chores into vacuum. The straight "short
+clear goal" walk is refused too when it would cross an airlock gate, or an NPC not allowed outside
+would step through an open outer door without the graph ever routing it. YourBuddy sets the flag for
+its suited buddy (its [EVA suit](https://github.com/bytenull1/yourbuddy-inhl/blob/main/docs/eva.md)).
+
+Which side an NPC may walk on is a second question: a shut airlock door blocks routing, and
+`RandomNode(owner, outdoors)` picks Outdoor nodes only when `outdoors`, the others only when not - an
+agent passes its own `IsOutside`. The airlock is crossed by the player's cycle, never planned through
+([an-airlock-is-crossed-by-its-cycle](invariants.md#an-airlock-is-crossed-by-its-cycle)).
 
 ### Ship nodes follow the ship's upgrades
 
@@ -91,9 +107,10 @@ Nodes sit wherever the editor dropped them. In the shipped `ShipyardStation` gra
 | #101 (mid-ramp, `Stair`) | 1.27 | ~0.30 | ~+1.0 |
 | #102–#104 (upper ledge) | 1.62 | 0.63 | ~+1.0 |
 
-`AddNode` floor-snaps new nodes, so a graph can mix floor-level and hovering markers. The fix is to
-probe each node's floor, not rewrite stored positions (which would move the user's markers).
-Rule: [floor-to-floor](invariants.md#floor-to-floor).
+`AddNode` raises a new marker to `NodeHoverHeight` (1 m) over its floor, matching the shipped
+graphs, however the player stood when placing it. Older graphs can still mix floor-level and
+hovering markers - the fix is to probe each node's floor, not rewrite stored positions (which would
+move the user's markers). Rule: [floor-to-floor](invariants.md#floor-to-floor).
 
 ---
 
@@ -112,7 +129,7 @@ A link needs no line of sight, height check or distance cap
 ## 4. A\* (`FindPath`)
 
 ```
-FindPath(start, end, cameFromPos?, avoidEntry?)
+FindPath(start, end, cameFromPos?, avoidEntry?, mayGoOutside?)
     start = FloorUnderNpc()       a floor point - its Y is the start floor
     end   = player / target       a body point or node, so its floor is probed
 ```

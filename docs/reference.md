@@ -68,6 +68,8 @@ See [agent.md §5](agent.md#5-walks).
 | `EntryBlockedAvoidAfter` / `EntryBlockedStepOffAfter` | 4 / 8 | escalation thresholds |
 | `UnreachableWaypointHold` | 6 s | how long an unwalkable waypoint stays barred |
 | `JumpVelocity` | 4.5 | auto-jump impulse |
+| `JumpMaxDrop` / `JumpLandingAhead` | 1 m / 1.2 m | how far below the feet the ground past a hop may lie, and how far ahead it is probed ([a-fence-is-not-hopped](invariants.md#a-fence-is-not-hopped)) |
+| `SwingingGateOpenSeconds` | 1 s | how long the agent stands while a fence gate's leaf swings open |
 | `DetourLedgeDrop` | 0.7 m | drop that makes a sideways detour a fall |
 | `CeilingHeadroom` | 0.1 m | ceiling this close above the body counts as wedging it |
 
@@ -171,6 +173,7 @@ See [doors.md](doors.md).
 | `ImpassableGatesTtl` | 1 s | the gates routing avoids; lock and open state change in play |
 | `DoorBroadPhaseRadius` | 3 m | a gate further than this from a route stretch is not tested |
 | `DoorBlockPadding` | 0.3 m | body clearance around a blocking gate's volume |
+| `ChamberFallbackRadius`, `ChamberFallbackHeight` | 1.5 m, 2 m | an airlock's chamber when its `PlayerDetector` volume cannot be read ([an-airlock-is-crossed-by-its-cycle](invariants.md#an-airlock-is-crossed-by-its-cycle)) |
 
 ### Sell pens - `SellPens.cs`
 

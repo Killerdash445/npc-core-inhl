@@ -229,7 +229,7 @@ namespace NPC.Core
         }
 
         /// <summary>
-        /// Airlock: outer/inner doors, hatch and connected room. Airlock gates are never opened
+        /// Airlock: outer/inner doors, hatch and chamber volume. Airlock gates are never opened
         /// by an NPC, and an airlock chamber is never a safe spot.
         /// </summary>
         internal static class AirlockAccess
@@ -237,11 +237,15 @@ namespace NPC.Core
             private static readonly FieldInfo? OuterDoor = Field<Gate>(typeof(Airlock), "outerDoor", "airlock gate detection / space protection");
             private static readonly FieldInfo? InnerDoor = Field<Gate>(typeof(Airlock), "innerDoor", "airlock gate detection / space protection");
             private static readonly FieldInfo? Hatch = Field<Gate>(typeof(Airlock), "hatch", "airlock gate detection / space protection");
-            private static readonly FieldInfo? ConnectedRoom = Field<Room>(typeof(Airlock), "connectedRoom", "airlock chamber detection");
+            private static readonly FieldInfo? PlayerDetector = Field<PlayerDetector>(typeof(Airlock), "playerDetector",
+                "which side of an airlock an NPC is on, and no safe spot in a chamber (its volume)");
+            private static readonly FieldInfo? ConnectedRoom = Field<Room>(typeof(Airlock), "connectedRoom",
+                "the room an NPC is in after coming in through an airlock");
 
             internal static Gate? GetOuterDoor(Airlock? airlock) => Get<Gate>(OuterDoor, airlock);
             internal static Gate? GetInnerDoor(Airlock? airlock) => Get<Gate>(InnerDoor, airlock);
             internal static Gate? GetHatch(Airlock? airlock) => Get<Gate>(Hatch, airlock);
+            internal static PlayerDetector? GetPlayerDetector(Airlock? airlock) => Get<PlayerDetector>(PlayerDetector, airlock);
             internal static Room? GetConnectedRoom(Airlock? airlock) => Get<Room>(ConnectedRoom, airlock);
         }
 

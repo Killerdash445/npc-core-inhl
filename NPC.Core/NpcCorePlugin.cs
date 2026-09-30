@@ -134,6 +134,7 @@ namespace NPC.Core
             // Door knowledge is the same for every NPC, so the graph asks it once:
             // docs/invariants.md#door-knowledge-is-shared
             NavGraph.SegmentBlockedByDoor = NpcDoors.SegmentBlockedByDoor;
+            NavGraph.SegmentCrossesAirlockGate = NpcDoors.SegmentCrossesAirlockGate;
             CoreSidecar.Register();
             NpcLifecare.Init();
 

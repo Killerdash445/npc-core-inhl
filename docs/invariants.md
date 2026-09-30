@@ -166,6 +166,20 @@ rejects a 1.25 m deck.
 **Enforced in.** `NpcAgent.StepsOffALedge` (from `SteerAroundObstacles`,
 `UpdateStuckDetection`, `TryBackAway`).
 
+### a-fence-is-not-hopped
+
+**Rule.** Auto-jump never hops an obstacle named `Fence...` (fences, their gates and stairs), nor
+any obstacle whose far side lies more than `JumpMaxDrop` (1 m) below the NPC's feet, or has no
+ground at all. It is off for an agent whose settings say `CanJump` false (a worn isolated suit).
+
+**Why.** A shut fence gate at the FuelStation looks like low furniture to the shin/head rays, so the
+NPC hopped the fences instead of using the gates - and some fences stand over a drop. Fences are
+told apart by name because nothing in their components marks them. The player in an isolated suit
+cannot jump at all (`PlayerController.Jump`).
+
+**Enforced in.** `NpcAgent.TryAutoJump`, `IsFence`, `LandsBelow`; the gates are opened instead
+([doors.md](doors.md#swinging-gates)).
+
 ### one-probe-basis
 
 **Rule.** All navigation probes go through `NavProbe`. Never write a second raycast with its own
@@ -442,11 +456,12 @@ deliberately weak; on a stair leg the exact test is
 
 **Rule.** "May the NPC **open** this gate?" (`NpcDoors.MayOpen`) and "should routing go **around**
 it?" (`NpcDoors.BlocksRouting`) are different questions. Only a gate that will still be shut when the
-NPC arrives - locked, a door the player could not walk open, a pin door without the code - blocks
-routing.
+NPC arrives - locked, a door the player could not walk open, a pin door without the code, a shut
+airlock door - blocks routing.
 
 **Why.** As one predicate, the NPC's refusal to open airlock and docking gates made the ship
-unreachable from a station. The player opens those. `ElectricityPanelGate` never blocks routing.
+unreachable from a station. The game opens the docking hatch, and docking opens the ship's
+airlock; `ElectricityPanelGate` never blocks routing.
 
 **Enforced in.** `NpcDoors.BlocksRouting`, `MayOpen`; `RefreshImpassableGates` uses the former
 ([doors.md §1](doors.md#1-two-different-questions)).
@@ -790,6 +805,37 @@ not a radius around the gate.
 
 **Enforced in.** `NpcAgent.DoorwayBlocker` via `GameInternals.GateAccess`.
 
+### an-airlock-is-crossed-by-its-cycle
+
+**Rule.** An NPC is inside or outside the station airlocks, and changes side only in a chamber:
+standing in one, it is on the side whose door alone is open - what the game's cycle does to the
+player (`Airlock.Exit`, `Enter`). Outside counts as space. Routing never crosses a shut
+airlock door, the ship's own included, and a wander picks nodes on its own side only.
+
+**Why.** An airlock's doorway is not a room `EntryDetector`, so room tracking left an NPC on the
+surface "in FuelMain"; and with airlock doors always routable, an NPC outside planned to indoor
+nodes and walked into the shut inner door. An undocked ship's graph still has its collar node past
+the airlock's outer door, and a wander walked into that door. The ship's airlock is left out of the
+side test only: its outer door opens onto a docking collar, and `Docker.Dock` opens both doors at
+once.
+
+Coming in, the NPC's tracked room becomes the airlock's `connectedRoom`, where `Enter` puts the player.
+
+**Enforced in.** `NpcAgent.UpdateAirlockSide`, `IsOutside`, `SetOutside`, `UpdateSpaceState`,
+`UpdateRoomTracking` (skipped outside); `NpcDoors.ChamberAt`, `TryChamberSide`, `BlocksRouting`;
+`NavGraph.RandomNode`, `NpcAgent.TryStartWanderRoute`.
+
+### no-safe-spot-in-a-chamber
+
+**Rule.** An agent never records a safe spot inside an airlock chamber, the player ship's included.
+The test is the position against the chamber volume, never the tracked room.
+
+**Why.** A chamber is no room, and `Airlock.connectedRoom` is the room beside it: a room test took
+no safe spot in `FuelMain`, `FuelRefinery` or `Front_M00`, so a space rescue landed at an older spot.
+
+**Enforced in.** `NpcAgent.MaySaveSpotAt` (from `UpdateRoomTracking`, `RideShipRebuild`);
+`NpcDoors.ChamberAt(point, withShip)`.
+
 ### an-npc-loads-rooms-by-the-door-rule
 
 **Rule.** An agent switches a room's content on only as the game does for the player: the room it
@@ -884,8 +930,10 @@ YourBuddy's `BuddySaveFile.Owner` / `OwnerLocalPosition`.
 
 ### an-unloaded-ship-parks-the-npc
 
-**Rule.** When the ship unloads for a spacewalk, every agent aboard is parked (`SetActive(false)`)
-before any room goes dark, and woken when the ship loads. A parked agent keeps no room content
+**Rule.** When the ship unloads - for a spacewalk, or because the player walked fully into a docked
+station ([game-model.md](game-model.md#a-spacewalk-unloads-the-players-ship---and-so-does-walking-into-a-station)) -
+every agent aboard is parked (`SetActive(false)`) before any room goes dark, and woken when the ship
+loads. An agent that walks aboard while the ship is off is not parked; it keeps its room loaded. A parked agent keeps no room content
 loaded.
 
 **Why.** The NPC's room listener re-enabled the bridge, whose `Autopilot` trigger then unloaded the
@@ -907,14 +955,21 @@ parent name that does not exist in a vanilla load.
 
 ### a-carried-item-belongs-to-the-room-its-carrier-is-in
 
-**Rule.** A held item's parent is the `ContentParent` of the carrier's current room, re-owned through
+**Rule.** A held item's parent is where the floor under its carrier says it is (`NpcAgent.ItemParentAt`):
+aboard, the tracked room if it is a ship room, else the nearest ship room; on a station, the tracked
+room if it is that station's, else the station's interior. It is re-owned through
 `Grabbable.SetParent` whenever they differ, and always before `SavePosition`. An item already
 inactive (`activeSelf` false) is left alone - a trash can or a sale destroyed it.
 
 **Why.** `EntryDetector.CheckItemParents` skips items with `restrictGrab`, so a carried box kept its
-old room, went inactive when that room was culled, and vanished from the NPC's hands.
+old room, went inactive when that room was culled, and vanished from the NPC's hands. The tracked
+room alone is not enough: it changes only at station doorways, and none of the ship's rooms has one,
+so after an undock an NPC aboard is still "in" a station room - a suit taken off there vanished with
+that room once the player carried it away.
 
-**Enforced in.** `NpcHands.ReownToCarrierRoom`, from `Follow` and `Release`.
+**Enforced in.** `NpcAgent.ItemParentAt` (cached per 0.25 s for the hands), `NpcHands.ReownToCarrierRoom`,
+from `Follow` and `Release`; a mod putting an item down asks `ItemParentAt` too (YourBuddy's
+`BuddySuit.TakeOff`).
 
 ### player-icon-fix-is-one-directional
 

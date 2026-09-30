@@ -14,7 +14,7 @@ namespace NPC.Core.Agents
         private void LateUpdate()
         {
             using NpcRegistry.ActingScope _ = NpcRegistry.Acting(this);
-            Hands.Follow(MoveSpeed);
+            Hands.Follow(WalkSpeed);
         }
 
         /// <summary>

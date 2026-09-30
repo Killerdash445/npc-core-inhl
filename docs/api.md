@@ -93,7 +93,7 @@ The walkable network is one hand-placed graph, shared by every NPC mod ([navigat
 | `NavGraph.LastPathBlockedByDoor` | the last search failed on a door no NPC can open: wait, do not wander |
 | `NavGraph.CanReachEntry(start, waypoint)` | the one entry predicate; re-check a plan with it ([one-entry-predicate](invariants.md#one-entry-predicate)) |
 | `NavGraph.WaypointIsOnAReachableDeck` | whether an old plan is still worth walking |
-| `NavGraph.RandomNode(owner?)`, `CollectActiveNodes`, `NearestActiveNodeOwner` | destinations |
+| `NavGraph.RandomNode(owner?, outdoors?)`, `CollectActiveNodes`, `NearestActiveNodeOwner`, `TypeAt` | destinations; `outdoors` picks the side of the airlocks ([navigation.md](navigation.md#node-types)) |
 | `NavGraph.TryVesselOf(t, out ship, out spaceObject)` | which vessel a scene object belongs to |
 | `NavGraph.NodeCount`, `GetNodeWorld(i)`, `GetNodeOwner(i)`, `GetNodeType(i)`, `IsNodeActive(i)` | read the graph: a node's world position, its owner (`NavGraph.ShipOwner`, or a station), `NodeType.Ground` or `Stair`, and whether its vessel is here and built. Only NPC.Core edits it |
 | `NavPath` | `Waypoints`, `IsForced(i)` (arrived by a drawn link), `FloorY(i)` (the deck under it) |
@@ -130,7 +130,9 @@ What every NPC shares about the station and the ship. Game background: [game-mod
 |---|---|
 | `NpcDoors.MayOpen(gate)` / `BlocksRouting(gate)` | open it yourself? route around it? ([opening-is-not-passing](invariants.md#opening-is-not-passing)) |
 | `NpcDoors.WhyClosedToPlayer(gate)` | why a detector-driven door is shut to the player, for your log |
-| `NpcDoors.IsAirlockGate`, `IsPasswordGate`, `PinPanelFor`, `RoomIsAirlockChamber` | what kind of door or room |
+| `NpcDoors.IsAirlockGate`, `IsPasswordGate`, `IsSwingingGate`, `PinPanelFor` | what kind of door ([swinging gates](doors.md#swinging-gates)) |
+| `NpcDoors.RoomIsAirlockChamber` | obsolete, always false: a chamber is no room. Use `ChamberAt(point)` |
+| `NpcDoors.ChamberAt(point)`, `ChamberCenter(airlock)`, `TryChamberSide(airlock, out toSpace)` | the station airlock whose chamber holds a point, and which side its open door gives it ([an-airlock-is-crossed-by-its-cycle](invariants.md#an-airlock-is-crossed-by-its-cycle)) |
 | `NpcDoors.LearnCode`, `KnownCodes`, `AnyKnownDoorMatches` | door codes the player gave any NPC; saved by NPC.Core |
 | `NpcDoors.Detectors`, `RoomsOf`, `DoorOf`, `TryInnerSide`, `Optimizes`, `DetectorsVersion` | doorway sensors, for room tracking |
 | `NpcDoors.NoteClosedBy(gate, npc)`, `WasClosedByNpc(gate, out by)` | right after your NPC calls `Gate.Close` ([npc-closes-must-not-move-the-player](invariants.md#npc-closes-must-not-move-the-player)); whether an NPC closed it just now |

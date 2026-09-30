@@ -78,10 +78,31 @@ low-detail exterior (`SpaceObject.cs:69-92`). Nothing is destroyed; docking reac
 parented into `contentParent` is frozen and thawed with it. Parenting cannot cover an NPC with no
 floor, or one in the docking collar, whose colliders switch off with the station.
 
-### A spacewalk unloads the player's ship
+### A spacewalk unloads the player's ship - and so does walking into a station
 
 `Airlock.Exit` (`Airlock.cs:247-264`) loads the object outside, then calls
-`PlayerShip.SetContentEnabled(false)`. `Airlock.Enter` reverses it; they are the only callers.
+`PlayerShip.SetContentEnabled(false)`; `Airlock.Enter` reverses it. Those are the only callers in
+code, but the scene wires two more on every station alike: the doorway between the docking corridor
+and the first interior room (`<Station>Parts/Doors/DoorFrame*/PlayerDetector`, an `EntryDetector`:
+FuelDocker/FuelEntry, YardEntry/YardHallway, OxygenDocker/OxygenMain, SolarDocker/SolarMain - the
+same doorway as each station's `FootstepDetector`) calls `SpaceShip.SetContentEnabled(false)` from
+`onRoomFullyEnter` - you have walked into the interior - and `SetContentEnabled(true)` from
+`onPlayerEnter` - you are back in that doorway. So while you are past the docking corridor, the
+ship's content is off. Found with the scene YAML (`m_MethodName: SetContentEnabled`).
+
+### An airlock moves only the player
+
+- **The chamber is no room.** An airlock's doorway object carries a `PlayerDetector`, an
+  `ItemDetector` and a `FurnitureDetector`, not an `EntryDetector`, so walking through one changes
+  no tracked room. `connectedRoom` is the room *beside* the chamber, where `Enter` puts the player
+  (`FuelMain` for `AirlockMain`, `FuelRefinery` for `AirlockRefinery`, `Front_M00` for the ship's).
+- **The cycle moves whoever `playerDetector` holds**, and the items and furniture in the chamber:
+  `Exit` sets the player's room to `SpaceRoom` and opens the outer door; `Enter` sets
+  `connectedRoom` and opens the inner door. Both refuse to run without the player in the chamber.
+- An agent copies it from the doors: [an-airlock-is-crossed-by-its-cycle](invariants.md#an-airlock-is-crossed-by-its-cycle).
+- **At a FuelStation dock** (`FuelStation.DockRefresh`, first dock only) the stuff airlock is left
+  open inside and the refinery airlock open to the surface. `Enter` switches the surface's floor
+  content (`asteroidRoom`) off.
 
 The `Autopilot` trigger is room content (`SpaceShip/Rooms/Front_M00/Front_M00Content/Autopilot`).
 Reactivating it fires `OnTriggerEnter`, which sets nearby `SpaceObject`s to `Optimized`
@@ -244,8 +265,11 @@ What the player's sum has and an agent's does not (so the player can die first i
 | `SpaceSuit`, `Space_Suit` | yes | 0.4 | unused |
 
 An agent counts `NpcAgentSettings.SuitTemperatureResistance`, 100 by default (a PilotSuit), so 40 °C
-feels like 41 °C to both (`FeltTemperature`, which a mod's own danger bands can use too). A player in
-a SpaceSuit, or no suit, is not mirrored.
+feels like 41 °C to both (`FeltTemperature`, which a mod's own danger bands can use too). With
+`Suited` on the agent wears an isolated suit itself: `AtmosphereThreat` is 0 whatever the room,
+space included, and the agent is allowed outside ([navigation.md](navigation.md#node-types)) - a
+fall 25 m below the player still teleports it back. A player in a SpaceSuit, or no suit, is otherwise
+not mirrored.
 
 **The game tick.** `GameManager.FixedUpdate` fires `OnTick` once `tickDelta` reaches `tickTime`,
 discarding the remainder, so a tick is ~1.02 s. An agent subscribes to `OnTick` while enabled. The

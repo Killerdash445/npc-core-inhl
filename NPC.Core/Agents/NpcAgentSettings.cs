@@ -41,6 +41,32 @@ namespace NPC.Core.Agents
         public virtual int SuitTemperatureResistance => 100;
 
         /// <summary>
+        /// Wears an isolated suit, as the player's Space_Suit does: flat 2200/2200 whatever the room,
+        /// so no atmosphere band ever applies, space included. docs/game-model.md#atmosphere-kills-by-the-players-rule
+        /// </summary>
+        public virtual bool Suited => false;
+
+        /// <summary>
+        /// May route through nodes marked <see cref="NPC.Core.Navigation.NodeType.Outdoor"/> - walk out
+        /// of an airlock onto a surface. A suit makes this safe; off, the graph keeps the NPC inside.
+        /// docs/navigation.md#node-types
+        /// </summary>
+        public virtual bool MayGoOutside => false;
+
+        /// <summary>
+        /// Multiplies <see cref="NpcAgent.MoveSpeed"/> while it walks: a worn suit's
+        /// MovementSpeedModifier, as PlayerController.MovementSpeed applies it (Space_Suit 0.4).
+        /// docs/agent.md#1-attaching-an-agent
+        /// </summary>
+        public virtual float SpeedFactor => 1f;
+
+        /// <summary>
+        /// Hops low obstacles in its way. Off, as for a player in an isolated suit
+        /// (PlayerController.Jump): docs/agent.md#1-attaching-an-agent
+        /// </summary>
+        public virtual bool CanJump => true;
+
+        /// <summary>
         /// Its ragdoll can be picked up once dead: <see cref="World.NpcCorpse"/>.
         /// </summary>
         public virtual bool CarryableCorpse => true;

@@ -30,7 +30,7 @@ static code such as `FindPath` included, because it runs inside the caller's act
 
 | Tag | Source | Typically logs |
 |---|---|---|
-| `[ai]` | `NpcAgent`, `NpcHands`, the `Docking` / `ShipRebuild` / `ShipContent` patches | replans, doors, rooms loaded, stuck recovery, step-offs, blockers, footsteps, riding and parking, air, the catch and death, carried items; the level-3 obstacle report |
+| `[ai]` | `NpcAgent`, `NpcHands`, the `Docking` / `ShipRebuild` / `ShipContent` patches | replans, doors, rooms loaded, the side of the airlocks, stuck recovery, step-offs, blockers, footsteps, riding and parking, air, the catch and death, carried items; the level-3 obstacle report |
 | `[nav]` | `NavGraph`, `StationRooms` | seeding, route chains, path failures, graph files |
 | `[probe]` | `NavProbe`, `SceneScan` | probe mask, gate inventory, gate-frame audits, full buffers, scene rescans |
 | `[editor]` | `NodeEditor`, `NpcCorePlugin` | node and link placement; the editor object made again after it was destroyed |

@@ -28,7 +28,7 @@ namespace NPC.Core.Agents
             if (!FindReachNode(task)) return "no nav node near it has a clear walk to it";
 
             // To the node itself, so the whole way is the graph's: docs/agent.md#6-walking-into-reach
-            NavPath? found = NavGraph.FindPath(FloorUnderNpc(), task.Node);
+            NavPath? found = NavGraph.FindPath(FloorUnderNpc(), task.Node, mayGoOutside: task.MayGoOutside);
             if (found is not { Count: > 0 })
             {
                 return NavGraph.LastPathBlockedByDoor ? "a door I cannot open is in the way" : "there is no path to it";
@@ -51,6 +51,9 @@ namespace NPC.Core.Agents
             bool found = false;
             foreach (Vector3 node in ReachNodeBuffer)
             {
+                // An Outdoor node is not a stand point for a walk that may not go outside.
+                if (!task.MayGoOutside && NavGraph.TypeAt(node) == NodeType.Outdoor) continue;
+
                 Vector3 toTarget = targetPos - node;
                 toTarget.y = 0f;
                 float flatSq = toTarget.sqrMagnitude;
@@ -131,7 +134,7 @@ namespace NPC.Core.Agents
             wantMove = true;
             currentMoveTarget = target;
             hasMoveTarget = true;
-            move = toTarget.normalized * MoveSpeed;
+            move = toTarget.normalized * WalkSpeed;
             return false;
         }
 
@@ -146,7 +149,7 @@ namespace NPC.Core.Agents
             if (toNode.sqrMagnitude <= ReachNodeArrival * ReachNodeArrival) return true;
 
             NavPath? plan = task.Replans < ReachMaxReplans
-                ? NavGraph.FindPath(FloorUnderNpc(), task.Node)
+                ? NavGraph.FindPath(FloorUnderNpc(), task.Node, mayGoOutside: task.MayGoOutside)
                 : null;
             task.Replans++;
             if (plan is { Count: > 0 })

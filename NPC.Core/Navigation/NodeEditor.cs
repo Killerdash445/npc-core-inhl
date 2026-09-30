@@ -157,13 +157,16 @@ namespace NPC.Core.Navigation
                 UpdateVisualization();
             }
 
-            // Key: T (by default) cycles the selected node's type Ground <-> Stair.
+            // Key: T (by default) cycles the selected node's type Ground <-> Stair <-> Outdoor.
             if (KeyDown(NpcCorePlugin.ConfigEditorTypeKey) && selectedNode >= 0)
             {
                 NodeType current = NavGraph.GetNodeType(selectedNode);
-                NodeType next = current == NodeType.Stair
-                    ? NodeType.Ground
-                    : NodeType.Stair;
+                NodeType next = current switch
+                {
+                    NodeType.Stair => NodeType.Outdoor,
+                    NodeType.Outdoor => NodeType.Ground,
+                    _ => NodeType.Stair,
+                };
                 NavGraph.SetNodeType(selectedNode, next);
                 NpcLog.Log.LogInfo("[editor] Node #" + selectedNode + " type: " + next);
                 UpdateVisualization();
@@ -266,12 +269,20 @@ namespace NPC.Core.Navigation
             }
         }
 
+        private static string NodeTypeLabel(NodeType type) => type switch
+        {
+            NodeType.Stair => ", stair",
+            NodeType.Outdoor => ", outdoor",
+            _ => "",
+        };
+
         private Color NodeColor(int index)
         {
             if (index == markedNode) return new Color(1f, 0.4f, 1f); // magenta: marked for a link
             if (index == selectedNode) return Color.red;
             if (!NavGraph.IsNodeActive(index)) return new Color(0.45f, 0.45f, 0.45f); // inactive or unbuilt
             if (NavGraph.GetNodeType(index) == NodeType.Stair) return new Color(1f, 0.55f, 0.1f);
+            if (NavGraph.GetNodeType(index) == NodeType.Outdoor) return Color.cyan;
             return Color.green;
         }
 
@@ -376,7 +387,7 @@ namespace NPC.Core.Navigation
                 string? anchor = NavGraph.GetNodeAnchor(selectedNode);
                 text += "\nNearest: #" + selectedNode + " (" + dist.ToString("0.0") + "m)" +
                         " [" + NavGraph.GetNodeOwner(selectedNode) + (anchor != null ? "/" + anchor : "") +
-                        (NavGraph.GetNodeType(selectedNode) == NodeType.Stair ? ", stair" : "") +
+                        NodeTypeLabel(NavGraph.GetNodeType(selectedNode)) +
                         "]";
             }
             else

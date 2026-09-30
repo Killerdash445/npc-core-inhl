@@ -58,7 +58,10 @@ NPC.Core.Agents.NpcAgent.InReach(NPC.Core.Agents.ReachTask! task) -> bool
 NPC.Core.Agents.NpcAgent.IsAboardPlayerShip() -> bool
 NPC.Core.Agents.NpcAgent.IsBeingCaught.get -> bool
 NPC.Core.Agents.NpcAgent.IsDead.get -> bool
+NPC.Core.Agents.NpcAgent.LifeInDanger.get -> bool
+NPC.Core.Agents.NpcAgent.IsOutside.get -> bool
 NPC.Core.Agents.NpcAgent.IsOwnBody(UnityEngine.Transform! t) -> bool
+NPC.Core.Agents.NpcAgent.ItemParentAt(UnityEngine.Vector3 pos) -> UnityEngine.Transform?
 NPC.Core.Agents.NpcAgent.LoadRoom(Room? room, string! why, Room? across = null) -> void
 NPC.Core.Agents.NpcAgent.LogSource.get -> BepInEx.Logging.ManualLogSource!
 NPC.Core.Agents.NpcAgent.ModName.get -> string!
@@ -77,6 +80,7 @@ NPC.Core.Agents.NpcAgent.Pursue(UnityEngine.Vector3 goal, out bool wantMove) -> 
 NPC.Core.Agents.NpcAgent.ReleasePlan() -> void
 NPC.Core.Agents.NpcAgent.RideOwner(string! owner, UnityEngine.Transform! anchor) -> void
 NPC.Core.Agents.NpcAgent.SetMoveTarget(UnityEngine.Vector3 target) -> void
+NPC.Core.Agents.NpcAgent.SetOutside(bool value, string! why) -> void
 NPC.Core.Agents.NpcAgent.SimpleAdvance(out bool wantMove) -> UnityEngine.Vector3
 NPC.Core.Agents.NpcAgent.SkippedWaypoint.get -> bool
 NPC.Core.Agents.NpcAgent.SkipWaypoint(string! why) -> void
@@ -90,6 +94,7 @@ NPC.Core.Agents.NpcAgent.TrackedRoomName.get -> string!
 NPC.Core.Agents.NpcAgent.TracksRoom(Room! room) -> bool
 NPC.Core.Agents.NpcAgent.TryStepOff(out UnityEngine.Vector3 velocity) -> bool
 NPC.Core.Agents.NpcAgent.Wander(string? owner, System.Predicate<UnityEngine.Vector3>? avoid, out bool wantMove) -> UnityEngine.Vector3
+NPC.Core.Agents.NpcAgent.WalkSpeed.get -> float
 NPC.Core.Agents.NpcAgent.WasMoving.get -> bool
 NPC.Core.Agents.NpcAgentSettings
 NPC.Core.Agents.NpcAgentSettings.NpcAgentSettings() -> void
@@ -111,7 +116,7 @@ NPC.Core.Agents.NpcHands.Drop(string! why) -> void
 NPC.Core.Agents.NpcHands.Extents.get -> UnityEngine.Vector3
 NPC.Core.Agents.NpcHands.Forward.get -> float
 NPC.Core.Agents.NpcHands.Item.get -> Grabbable?
-NPC.Core.Agents.NpcHands.NpcHands(UnityEngine.MonoBehaviour! body, UnityEngine.Collider? blocker, System.Func<float, UnityEngine.Vector3>! groundPos, System.Func<Room?>! room) -> void
+NPC.Core.Agents.NpcHands.NpcHands(UnityEngine.MonoBehaviour! body, UnityEngine.Collider? blocker, System.Func<float, UnityEngine.Vector3>! groundPos, System.Func<UnityEngine.Transform?>! itemParent) -> void
 NPC.Core.Agents.NpcHands.PickUp(Grabbable! item) -> bool
 NPC.Core.Agents.NpcHands.Point.get -> UnityEngine.Vector3
 NPC.Core.Agents.NpcHands.PutDown(UnityEngine.Vector3 at, UnityEngine.Vector3 velocity) -> void
@@ -179,6 +184,7 @@ NPC.Core.Navigation.NavPath.Waypoints.init -> void
 NPC.Core.Navigation.NavProbe
 NPC.Core.Navigation.NodeType
 NPC.Core.Navigation.NodeType.Ground = 0 -> NPC.Core.Navigation.NodeType
+NPC.Core.Navigation.NodeType.Outdoor = 2 -> NPC.Core.Navigation.NodeType
 NPC.Core.Navigation.NodeType.Stair = 1 -> NPC.Core.Navigation.NodeType
 NPC.Core.Navigation.StationRooms
 NPC.Core.Navigation.StationRooms.Entry
@@ -254,7 +260,7 @@ static NPC.Core.Interaction.NpcInteraction.Register(NPC.Core.Interaction.INpcCon
 static NPC.Core.Interaction.NpcInteraction.Unregister(NPC.Core.Interaction.INpcConversation! conversation) -> void
 static NPC.Core.Navigation.NavGraph.CanReachEntry(UnityEngine.Vector3 start, UnityEngine.Vector3 waypoint) -> bool
 static NPC.Core.Navigation.NavGraph.CollectActiveNodes(System.Collections.Generic.List<UnityEngine.Vector3>! into) -> void
-static NPC.Core.Navigation.NavGraph.FindPath(UnityEngine.Vector3 start, UnityEngine.Vector3 end, UnityEngine.Vector3? cameFromPos = null, UnityEngine.Vector3? avoidEntry = null) -> NPC.Core.Navigation.NavPath?
+static NPC.Core.Navigation.NavGraph.FindPath(UnityEngine.Vector3 start, UnityEngine.Vector3 end, UnityEngine.Vector3? cameFromPos = null, UnityEngine.Vector3? avoidEntry = null, bool mayGoOutside = false) -> NPC.Core.Navigation.NavPath?
 static NPC.Core.Navigation.NavGraph.GetNodeOwner(int index) -> string?
 static NPC.Core.Navigation.NavGraph.GetNodeType(int index) -> NPC.Core.Navigation.NodeType
 static NPC.Core.Navigation.NavGraph.GetNodeWorld(int index) -> UnityEngine.Vector3
@@ -262,8 +268,9 @@ static NPC.Core.Navigation.NavGraph.IsNodeActive(int index) -> bool
 static NPC.Core.Navigation.NavGraph.LastPathBlockedByDoor.get -> bool
 static NPC.Core.Navigation.NavGraph.NearestActiveNodeOwner(UnityEngine.Vector3 worldPos, float maxDist) -> string?
 static NPC.Core.Navigation.NavGraph.NodeCount.get -> int
-static NPC.Core.Navigation.NavGraph.RandomNode(string? owner = null) -> UnityEngine.Vector3
+static NPC.Core.Navigation.NavGraph.RandomNode(string? owner = null, bool outdoors = false) -> UnityEngine.Vector3
 static NPC.Core.Navigation.NavGraph.TryVesselOf(UnityEngine.Transform? start, out SpaceShip? ship, out SpaceObject? spaceObject) -> bool
+static NPC.Core.Navigation.NavGraph.TypeAt(UnityEngine.Vector3 worldPos) -> NPC.Core.Navigation.NodeType
 static NPC.Core.Navigation.NavGraph.WaypointIsOnAReachableDeck(UnityEngine.Vector3 start, UnityEngine.Vector3 waypoint) -> bool
 static NPC.Core.Navigation.NavPath.operator !=(NPC.Core.Navigation.NavPath left, NPC.Core.Navigation.NavPath right) -> bool
 static NPC.Core.Navigation.NavPath.operator ==(NPC.Core.Navigation.NavPath left, NPC.Core.Navigation.NavPath right) -> bool
@@ -320,12 +327,15 @@ static NPC.Core.SceneScan.MayRescan(bool mustScan) -> bool
 static NPC.Core.SceneScan.ThisFrame<T>() -> T![]!
 static NPC.Core.World.NpcDoors.AnyKnownDoorMatches() -> bool
 static NPC.Core.World.NpcDoors.BlocksRouting(Gate! gate) -> bool
+static NPC.Core.World.NpcDoors.ChamberAt(UnityEngine.Vector3 point) -> Airlock?
+static NPC.Core.World.NpcDoors.ChamberCenter(Airlock! airlock) -> UnityEngine.Vector3
 static NPC.Core.World.NpcDoors.Detectors.get -> System.Collections.Generic.IReadOnlyList<EntryDetector!>!
 static NPC.Core.World.NpcDoors.DetectorsVersion.get -> int
 static NPC.Core.World.NpcDoors.DoorOf(EntryDetector! detector) -> Gate?
 static NPC.Core.World.NpcDoors.ImpassableCount.get -> int
 static NPC.Core.World.NpcDoors.IsAirlockGate(Gate! gate) -> bool
 static NPC.Core.World.NpcDoors.IsPasswordGate(Gate! gate) -> bool
+static NPC.Core.World.NpcDoors.IsSwingingGate(Door! door) -> bool
 static NPC.Core.World.NpcDoors.KnownCodes.get -> System.Collections.Generic.IReadOnlyCollection<int>!
 static NPC.Core.World.NpcDoors.LearnCode(int code) -> bool
 static NPC.Core.World.NpcDoors.MayOpen(Gate! gate) -> bool
@@ -334,6 +344,7 @@ static NPC.Core.World.NpcDoors.Optimizes(EntryDetector! detector) -> bool
 static NPC.Core.World.NpcDoors.PinPanelFor(Gate! gate) -> DoorPinCode?
 static NPC.Core.World.NpcDoors.RoomIsAirlockChamber(Room? room) -> bool
 static NPC.Core.World.NpcDoors.RoomsOf(EntryDetector! detector, out Room? inner, out Room? outer) -> void
+static NPC.Core.World.NpcDoors.TryChamberSide(Airlock! airlock, out bool toSpace) -> bool
 static NPC.Core.World.NpcDoors.TryInnerSide(EntryDetector! detector, UnityEngine.Vector3 pos, out bool inner) -> bool
 static NPC.Core.World.NpcDoors.WasClosedByNpc(Gate! gate, out NPC.Core.INpc? by) -> bool
 static NPC.Core.World.NpcDoors.WhyClosedToPlayer(Gate! gate) -> string?
@@ -362,14 +373,19 @@ static NPC.Core.World.SellPens.InAFencedPen(UnityEngine.Vector3 point, SellStati
 static readonly NPC.Core.Agents.ReachTask.ReachStandOffs -> float[]!
 virtual NPC.Core.Agents.NpcAgentSettings.BreathesAir.get -> bool
 virtual NPC.Core.Agents.NpcAgentSettings.CanBeCaught.get -> bool
+virtual NPC.Core.Agents.NpcAgentSettings.CanJump.get -> bool
 virtual NPC.Core.Agents.NpcAgentSettings.CanOpenDoors.get -> bool
 virtual NPC.Core.Agents.NpcAgentSettings.CarryableCorpse.get -> bool
 virtual NPC.Core.Agents.NpcAgentSettings.DebugVisuals.get -> bool
 virtual NPC.Core.Agents.NpcAgentSettings.KeepOutOfSpace.get -> bool
+virtual NPC.Core.Agents.NpcAgentSettings.MayGoOutside.get -> bool
 virtual NPC.Core.Agents.NpcAgentSettings.Mortal.get -> bool
 virtual NPC.Core.Agents.NpcAgentSettings.MoveSpeed.get -> float
 virtual NPC.Core.Agents.NpcAgentSettings.ShowOnLifecare.get -> bool
+virtual NPC.Core.Agents.NpcAgentSettings.SpeedFactor.get -> float
+virtual NPC.Core.Agents.NpcAgentSettings.Suited.get -> bool
 virtual NPC.Core.Agents.NpcAgentSettings.SuitTemperatureResistance.get -> int
+virtual NPC.Core.Agents.ReachTask.MayGoOutside.get -> bool
 virtual NPC.Core.Agents.ReachTask.Reach.get -> float
 virtual NPC.Core.Agents.ReachTask.ReachBelow.get -> float
 virtual NPC.Core.Agents.ReachTask.Recover(string! why) -> bool

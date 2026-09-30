@@ -23,6 +23,14 @@ namespace NPC.Core.Navigation
         internal static Func<Vector3, Vector3, bool>? SegmentBlockedByDoor;
 
         /// <summary>
+        /// "Does this straight stretch cross an airlock's inner, outer or hatch gate?"
+        /// Bound once at plugin load to NpcDoors. FindPath refuses a straight finish across one
+        /// for a walk that may not go outside, or an NPC would step through an open outer door
+        /// to a nearby goal without ever planning through an Outdoor node. null means no filter.
+        /// </summary>
+        internal static Func<Vector3, Vector3, bool>? SegmentCrossesAirlockGate;
+
+        /// <summary>
         /// True when the last FindPath rejected something for a door it cannot open.
         /// Follow reads it to stand still instead of wandering off:
         /// docs/invariants.md#stand-still-when-door-blocked
@@ -35,6 +43,15 @@ namespace NPC.Core.Navigation
 
             LastPathBlockedByDoor = true;
             return true;
+        }
+
+        /// <summary>
+        /// The straight-walk shortcuts refuse a stretch across an airlock gate for a walk that
+        /// may not go outside, whatever the gates' open state.
+        /// </summary>
+        private static bool AirlockBlocks(Vector3 a, Vector3 b, bool mayGoOutside)
+        {
+            return !mayGoOutside && SegmentCrossesAirlockGate != null && SegmentCrossesAirlockGate(a, b);
         }
 
         public const string ShipOwner = "ship";
@@ -614,14 +631,14 @@ namespace NPC.Core.Navigation
         {
             EnsureLoaded();
             DetectOwner(worldPos, out string owner, out Transform? ownerT);
-            Vector3 floor = FloorUnder(worldPos, ownerT);
-            Vector3 local = ownerT != null ? ownerT.InverseTransformPoint(floor) : floor;
+            Vector3 anchor = FloorUnderHovered(worldPos, ownerT);
+            Vector3 local = ownerT != null ? ownerT.InverseTransformPoint(anchor) : anchor;
 
             // Against where live nodes are now: a ship node's stored point is where its room was.
             OwnerSnapshot owners = new();
             foreach (Node n in Nodes)
             {
-                if (n.Owner == owner && owners.IsLive(n) && (owners.WorldOf(n) - floor).sqrMagnitude < 0.09f)
+                if (n.Owner == owner && owners.IsLive(n) && (owners.WorldOf(n) - anchor).sqrMagnitude < 0.09f)
                 {
                     return; // duplicate
                 }
@@ -679,8 +696,10 @@ namespace NPC.Core.Navigation
         /// Returns a random node in world space, or Vector3.zero if no nodes exist.
         /// Only active nodes are considered, so the NPC never targets a station it
         /// is not docked to. `owner` narrows it to one ship or station; null means any.
+        /// Only Outdoor nodes when `outdoors`, only the others when not: an NPC picks on its own
+        /// side of the airlocks. docs/invariants.md#an-airlock-is-crossed-by-its-cycle
         /// </summary>
-        public static Vector3 RandomNode(string? owner = null)
+        public static Vector3 RandomNode(string? owner = null, bool outdoors = false)
         {
             EnsureLoaded();
             OwnerSnapshot owners = new();
@@ -689,11 +708,22 @@ namespace NPC.Core.Navigation
             {
                 if (owner != null && Nodes[i].Owner != owner) continue;
 
+                if ((Nodes[i].Type == NodeType.Outdoor) != outdoors) continue;
+
                 if (owners.IsLive(Nodes[i])) active.Add(i);
             }
             if (active.Count == 0) return Vector3.zero;
 
             return owners.WorldOf(Nodes[active[UnityEngine.Random.Range(0, active.Count)]]);
+        }
+
+        /// <summary>
+        /// The type of the node at a world position, or Ground when there is none.
+        /// </summary>
+        public static NodeType TypeAt(Vector3 worldPos)
+        {
+            EnsureLoaded();
+            return NodeAt(worldPos)?.Type ?? NodeType.Ground;
         }
 
         /// <summary>
@@ -1449,16 +1479,22 @@ namespace NPC.Core.Navigation
         // Helpers
         // ----------------------------------------------------------------
 
-        private static Vector3 FloorUnder(Vector3 pos, Transform? owner)
+        /// <summary>
+        /// Where a placed marker goes: body height over the floor, like the shipped graph's
+        /// markers, however the player was standing when they placed it. A floor hit is raised;
+        /// a miss keeps the given point, which is already where the player stands.
+        /// docs/navigation.md#2-nodes-are-not-on-the-floor
+        /// </summary>
+        private const float NodeHoverHeight = 1f;
+
+        private static Vector3 FloorUnderHovered(Vector3 pos, Transform? owner)
         {
             Vector3 up = owner != null ? owner.up : Vector3.up;
             if (Physics.Raycast(pos + up * 0.5f, -up, out RaycastHit hit, 4f,
-                    NavProbe.ProbeLayers, QueryTriggerInteraction.Ignore))
+                    NavProbe.ProbeLayers, QueryTriggerInteraction.Ignore)
+                && hit.point.y <= pos.y + 0.5f)
             {
-                // Ensure we don't pick a point on the ceiling if we are following.
-                if (hit.point.y > pos.y + 0.5f) return pos;
-
-                return hit.point;
+                return hit.point + up * NodeHoverHeight;
             }
             return pos;
         }
@@ -1832,10 +1868,12 @@ namespace NPC.Core.Navigation
         /// <summary>
         /// Plans a route. cameFromPos penalizes entry near the node just departed;
         /// avoidEntry bars a waypoint from the whole search. docs/navigation.md §4,
-        /// docs/invariants.md#avoid-entry-bars-the-whole-search
+        /// docs/invariants.md#avoid-entry-bars-the-whole-search. `mayGoOutside` is what lets the
+        /// route enter <see cref="NodeType.Outdoor"/> nodes (or finish straight across an airlock
+        /// gate); every default caller stays inside. docs/navigation.md#node-types
         /// </summary>
         public static NavPath? FindPath(Vector3 start, Vector3 end, Vector3? cameFromPos = null,
-            Vector3? avoidEntry = null)
+            Vector3? avoidEntry = null, bool mayGoOutside = false)
         {
             // The working sets are shared; a nested search would clear the outer one's.
             if (_inFindPath)
@@ -1847,12 +1885,12 @@ namespace NPC.Core.Navigation
             _inFindPath = true;
             try
             {
-                NavPath? plan = FindPathCore(start, end, cameFromPos, avoidEntry);
+                NavPath? plan = FindPathCore(start, end, cameFromPos, avoidEntry, mayGoOutside);
                 if (plan != null || !avoidEntry.HasValue) return plan;
 
                 // No route around the barred waypoint: go through it rather than have no plan.
                 // docs/invariants.md#a-barred-waypoint-is-a-preference-not-a-wall
-                plan = FindPathCore(start, end, cameFromPos, null);
+                plan = FindPathCore(start, end, cameFromPos, null, mayGoOutside);
                 if (plan != null && NpcLog.Level >= 2)
                 {
                     NpcLog.Log.LogInfo(
@@ -1867,7 +1905,7 @@ namespace NPC.Core.Navigation
         }
 
         private static NavPath? FindPathCore(Vector3 start, Vector3 end, Vector3? cameFromPos,
-            Vector3? avoidEntry)
+            Vector3? avoidEntry, bool mayGoOutside)
         {
             EnsureLoaded();
             LastPathBlockedByDoor = false;
@@ -1904,10 +1942,13 @@ namespace NPC.Core.Navigation
             float endFloorY = FloorYOf(NodeAt(end), end);
 
             // A short, validated walk: take it. The finish leg's own predicate, anchored
-            // at the NPC. docs/invariants.md#a-clear-short-goal-beats-the-graph
+            // at the NPC. docs/invariants.md#a-clear-short-goal-beats-the-graph. Not across
+            // an airlock gate for a walk that may not go outside, or an NPC would step
+            // through an open outer door to a nearby goal without the graph ever routing it.
             if ((start - end).sqrMagnitude <= MaxGoalFinishDist * MaxGoalFinishDist &&
                 Mathf.Abs(endFloorY - startFloorY) <= SameLevelDeltaY &&
                 !DoorBlocks(start, end) &&
+                !AirlockBlocks(start, end, mayGoOutside) &&
                 HasLineOfSight(start, end, SameLevelDeltaY))
             {
                 if (debug)
@@ -2088,6 +2129,7 @@ namespace NPC.Core.Navigation
                     // Cost first: the walkable-line probe is the expensive part, and only a better finish needs it.
                     float total = gScore[current] + GoalCost(world[current], floors[current], end, endFloorY);
                     if (total < bestTotal && !DoorBlocks(world[current], end) &&
+                        !AirlockBlocks(world[current], end, mayGoOutside) &&
                         HasLineOfSight(world[current], end, SameLevelDeltaY))
                     {
                         bestTotal = total;
@@ -2128,6 +2170,9 @@ namespace NPC.Core.Navigation
                     // Links are filtered too: their LOS exemption is about sight lines, and a
                     // locked door is not one. docs/invariants.md#locked-doors-block-edges
                     if (DoorBlocks(world[current], world[e.To])) continue;
+                    // An Outdoor node is entered only by a walk allowed outside.
+                    // docs/navigation.md#node-types
+                    if (!mayGoOutside && NodeById(e.To)?.Type == NodeType.Outdoor) continue;
 
                     float tentative = gScore[current] + e.Cost;
                     if (gScore.TryGetValue(e.To, out float oldG) && tentative >= oldG) continue;

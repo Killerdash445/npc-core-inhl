@@ -276,9 +276,10 @@ namespace NPC.Core.Agents
 
                     // Always call it, even with an empty graph: FindPath returns null
                     // straight away and clears LastPathBlockedByDoor, which the
-                    // no-plan branch below reads.
+                    // no-plan branch below reads. Outdoor nodes only for an NPC
+                    // allowed outside: docs/navigation.md#node-types
                     NavPath? plan =
-                        NavGraph.FindPath(start, goal, cameFrom, avoidEntry);
+                        NavGraph.FindPath(start, goal, cameFrom, avoidEntry, settings.MayGoOutside);
 
                     if (entryBlocked && entryBlockedCount >= EntryBlockedStepOffAfter)
                     {
@@ -376,7 +377,7 @@ namespace NPC.Core.Agents
                     wantMove = true;
                     currentMoveTarget = navPlan.Value[navPathIndex];
                     hasMoveTarget = true;
-                    return HeadingAlongPlan() * MoveSpeed;
+                    return HeadingAlongPlan() * WalkSpeed;
                 }
             }
 
@@ -386,7 +387,7 @@ namespace NPC.Core.Agents
             wantMove = true;
             currentMoveTarget = goal;
             hasMoveTarget = true;
-            return toTarget.normalized * MoveSpeed;
+            return toTarget.normalized * WalkSpeed;
         }
 
         /// <summary>
@@ -579,7 +580,7 @@ namespace NPC.Core.Agents
             hasMoveTarget = true;
             Vector3 toStep = followStepOffTarget - transform.position;
             toStep.y = 0f;
-            if (toStep.sqrMagnitude >= 0.001f) velocity = toStep.normalized * MoveSpeed;
+            if (toStep.sqrMagnitude >= 0.001f) velocity = toStep.normalized * WalkSpeed;
 
             return true;
         }
@@ -785,7 +786,7 @@ namespace NPC.Core.Agents
                     return Vector3.zero;
                 }
 
-                return HeadAlongPlan(MoveSpeed * 0.85f, out wantMove);
+                return HeadAlongPlan(WalkSpeed * 0.85f, out wantMove);
             }
 
             if (Time.time >= wanderIdleUntil && TryStartWanderRoute(owner, avoid)) return Vector3.zero;
@@ -810,14 +811,15 @@ namespace NPC.Core.Agents
             int planned = 0;
             for (int attempt = 0; attempt < WanderPickAttempts; attempt++)
             {
-                Vector3 node = NavGraph.RandomNode(owner);
+                // On its own side of the airlocks: docs/invariants.md#an-airlock-is-crossed-by-its-cycle
+                Vector3 node = NavGraph.RandomNode(owner, outdoors: outside);
                 if (node == Vector3.zero) break;
                 if (avoid != null && avoid(node)) continue;
 
                 planned++;
 
                 // From the floor, like Pursue: docs/invariants.md#floor-to-floor
-                NavPath? plan = NavGraph.FindPath(FloorUnderNpc(), node);
+                NavPath? plan = NavGraph.FindPath(FloorUnderNpc(), node, mayGoOutside: settings.MayGoOutside);
                 if (plan is { Count: > 0 })
                 {
                     wanderPickFailures = 0;
@@ -903,7 +905,7 @@ namespace NPC.Core.Agents
 
                 if (away.sqrMagnitude < 0.0001f) away = transform.right;
                 followStepOffTarget = transform.position + away.normalized * SpacingStep;
-                followStepOffUntil = Time.time + SpacingStep / Mathf.Max(0.5f, MoveSpeed);
+                followStepOffUntil = Time.time + SpacingStep / Mathf.Max(0.5f, WalkSpeed);
                 spaceOutAt = Time.time + SpacingCooldown;
                 if (NpcLog.Level >= 2) NpcLog.Log.LogInfo("[ai] Stepping aside for " + other.Name);
                 return;
@@ -933,7 +935,7 @@ namespace NPC.Core.Agents
             wantMove = true;
             currentMoveTarget = waypoint;
             hasMoveTarget = true;
-            return toWaypoint.normalized * MoveSpeed;
+            return toWaypoint.normalized * WalkSpeed;
         }
 
         /// <summary>

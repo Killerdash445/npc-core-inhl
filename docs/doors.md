@@ -20,7 +20,8 @@ What a door *is* to an NPC is one answer for all of them
 | already open | yes | no |
 | `Gate.Locked` | no | **yes** |
 | driven by detectors, but none is switched on, or every one needs a suit the player lacks ([an-npc-opens-only-what-the-player-could](invariants.md#an-npc-opens-only-what-the-player-could)) | no | **yes** |
-| airlock door, docking hatch (`IsAirlockGate`) | no - venting risk | **no** - the player opens these |
+| an airlock's inner or outer door, shut - the ship's own included | no - venting risk | **yes** - only a cycle or a docking opens it ([an-airlock-is-crossed-by-its-cycle](invariants.md#an-airlock-is-crossed-by-its-cycle)) |
+| a docking hatch (`IsAirlockGate`) | no - venting risk | **no** - the game opens it on docking |
 | `ElectricityPanelGate` | no ([keep-electricitypanelgate-excluded](invariants.md#keep-electricitypanelgate-excluded)) | no - a wall panel |
 | pin-code door | only with a known code | **yes**, unless the code is known |
 | anything else | yes | no |
@@ -132,6 +133,16 @@ this.
 
 Opening a gate also enables the room content on both sides, so the agent never walks into an
 unloaded room.
+
+### Swinging gates
+
+The FuelStation's fence gates are no `Gate`: they are a `Door` (a leaf on a hinge) with an
+`Interactable` whose interact calls `Door.Switch`. When the ray hits one that is shut
+(`NpcDoors.IsSwingingGate`: a `Door` named `FenceGate`), the agent calls `Door.Open`, stands still
+`SwingingGateOpenSeconds` (1 s) while the leaf swings, and walks on; it leaves the gate open, as a
+player walking through would. Every other `Door` is a cabinet, chest, fridge or locker leaf that
+only an errand using the container opens. Fences themselves are never hopped
+([a-fence-is-not-hopped](invariants.md#a-fence-is-not-hopped)).
 
 ### Which rooms an NPC loads
 

@@ -71,6 +71,10 @@ the player, the other NPCs and the body's own controller passing through its con
 | `Mortal` | on | neither the air nor the monster kills it |
 | `CanBeCaught`, `BreathesAir` | on | the monster, or the air, leaves it alone |
 | `SuitTemperatureResistance` | 100 | the suit it feels the air through ([game-model.md](game-model.md#atmosphere-kills-by-the-players-rule)) |
+| `Suited` | off | the air kills it, and `KeepOutOfSpace` teleports it back when it is outside or its room or air is gone. On, it wears an isolated suit: flat 2200/2200 whatever the room, space included, and it may be outside. A fall 25 m below the player still rescues it ([game-model.md](game-model.md#atmosphere-kills-by-the-players-rule)) |
+| `SpeedFactor` | 1 | multiplies `MoveSpeed` into `NpcAgent.WalkSpeed`, the speed every walk uses: a worn suit's `MovementSpeedModifier`, as the game slows the player (Space_Suit 0.4) |
+| `CanJump` | on | never auto-jumps, as a player in an isolated suit cannot ([a-fence-is-not-hopped](invariants.md#a-fence-is-not-hopped)) |
+| `MayGoOutside` | off | routing never enters an [Outdoor node](navigation.md#node-types). On, follow and goto may; flee, hide and errand plans still never do ([navigation.md](navigation.md#node-types)) |
 | `CarryableCorpse` | on | no `NpcCorpse` on the ragdoll |
 | `ShowOnLifecare` | on | not drawn on the lifecare terminal; a drawn icon goes at the next scan ([lifecare.md](lifecare.md)) |
 | `DebugVisuals` | off | debug lines, and the level-3 obstacle report |
@@ -123,7 +127,7 @@ fifth phase** - it slows every phase to ~0.30 s; add work to an existing one. It
 | Phase | The agent | then a brain, such as YourBuddy's |
 |---|---|---|
 | 0 | floor plane, owner anchor, room tracking, environment | loads the rooms that hold a sell station |
-| 1 | open-space state and protection | - |
+| 1 | airlock side, open-space state and protection | - |
 | 2 | the Breathless catch | fear |
 | 3 | door close-behind | the decider, the life-support check |
 
@@ -207,8 +211,10 @@ Pursue that arrived). `Plan`, `PlanIndex`, `HasPlanLeft` and `SkippedWaypoint` r
 
 Other members a brain uses: `SetMoveTarget` / `ClearMoveTarget` / `MoveTarget`, `StepOff(target,
 seconds)` / `CancelStepOff`, `BodyBlocked`, `StepsOffALedge`, `DetourAngles`, `FloorUnderNpc`,
-`FloorUnderPlayer`, `GroundPos`, `OriginToFeet`, `TeleportTo`, `FacePoint` / `FacePlayer`,
-`LoadRoom`, `OnMyVessel`, `IsAboardPlayerShip`, `IsPlayerInSpace`, `FeltTemperature`, `Die`,
+`FloorUnderPlayer`, `GroundPos`, `OriginToFeet`, `WalkSpeed`, `TeleportTo`, `FacePoint` / `FacePlayer`,
+`LoadRoom`, `OnMyVessel`, `IsAboardPlayerShip`, `IsPlayerInSpace`, `LifeInDanger` (the air is
+killing it now: threat lethal, or the death counter still up), `IsOutside` / `SetOutside` (the
+side of the airlocks, [an-airlock-is-crossed-by-its-cycle](invariants.md#an-airlock-is-crossed-by-its-cycle)), `FeltTemperature`, `Die`,
 `EnsureDebugVisuals`, `IsBeingCaught`, `WasMoving`, `HasMoveTarget`; `CurrentOwner` (the vessel frame
 it rides) and `RideOwner(owner, anchor)` (a restored NPC starts in its saved frame);
 `DescribeSurroundings` (room, air and threat, for a HUD). Constants: `FollowSameLevelDeltaY`, the deck
@@ -277,7 +283,8 @@ lowers it slowly instead. `Turn` sets its facing.
 physics and calls `SavePosition`. Item and item blocker ignore each other for `PutDownIgnoreSeconds`.
 While held, the player cannot grab it.
 
-**Which room it belongs to.** Each frame the held item is re-owned to the carrier's current room
+**Which room it belongs to.** Each frame the held item is re-owned to where the carrier stands
+(`ItemParentAt`: by the floor, since the tracked room is stale aboard the ship)
 ([a-carried-item-belongs-to-the-room-its-carrier-is-in](invariants.md#a-carried-item-belongs-to-the-room-its-carrier-is-in)),
 because the game's own re-parenting skips `restrictGrab` items. An item already inactive was destroyed
 (trash can, sale) and is left alone.

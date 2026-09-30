@@ -287,10 +287,44 @@ namespace NPC.Core.Agents
         /// Auto-jump: low furniture (chairs, counters, boxes) blocks the NPC at shin
         /// level but leaves headroom clear - hop over it.
         /// </summary>
+        /// <summary>
+        /// How far below the NPC's feet the ground beyond a hop may lie, and how far ahead it is looked for.
+        /// </summary>
+        private const float JumpMaxDrop = 1f;
+        private const float JumpLandingAhead = 1.2f;
+
+        /// <summary>
+        /// The game's fences (Fence, FenceMetal, FenceShortStairs, FenceGate...) are named so; nothing
+        /// else a body hits is. docs/invariants.md#a-fence-is-not-hopped
+        /// </summary>
+        private static bool IsFence(Transform t)
+        {
+            for (int depth = 0; t != null && depth < 4; depth++, t = t.parent)
+            {
+                if (t.name.StartsWith("Fence", System.StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Whether the ground past the obstacle is more than JumpMaxDrop below the feet, or missing.
+        /// </summary>
+        private bool LandsBelow(Vector3 dir)
+        {
+            float feet = GroundPos(0f).y;
+            Vector3 from = GroundPos(1.2f) + dir * JumpLandingAhead;
+            if (!Physics.Raycast(from, Vector3.down, out RaycastHit hit, 1.2f + JumpMaxDrop + 0.5f, ProbeLayers,
+                    QueryTriggerInteraction.Ignore))
+            {
+                return true;
+            }
+            return hit.point.y < feet - JumpMaxDrop;
+        }
+
         private void TryAutoJump(Vector3 desired)
         {
             wantJump = false;
-            if (Time.time < jumpCooldownUntil || verticalVelocity > 0.1f) return;
+            if (!settings.CanJump || Time.time < jumpCooldownUntil || verticalVelocity > 0.1f) return;
 
             Vector3 dir = new(desired.x, 0f, desired.z);
             if (dir.sqrMagnitude < 0.01f) return;
@@ -308,10 +342,16 @@ namespace NPC.Core.Agents
 
                 if (IsWalkableGround(CastBuffer[i], dir)) continue;
 
+                // A fence is a boundary, often over a drop: docs/invariants.md#a-fence-is-not-hopped
+                if (IsFence(CastBuffer[i].collider.transform)) return;
+
                 shinBlocked = true;
                 break;
             }
             if (!shinBlocked) return;
+
+            // Never a hop down: the far side must be about as high as this floor.
+            if (LandsBelow(dir)) return;
 
             // ...but clear space at head height: it is low furniture, not a wall - jump.
             Vector3 headOrigin = GroundPos(1.45f);

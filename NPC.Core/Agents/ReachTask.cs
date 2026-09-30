@@ -47,6 +47,13 @@ namespace NPC.Core.Agents
         public virtual float ReachBelow => 0f;
 
         /// <summary>
+        /// Whether the walk to this target may route through Outdoor nodes
+        /// (<see cref="NPC.Core.Navigation.NodeType.Outdoor"/>). Off for every errand; a walk
+        /// outside overrides it (an EVA run, fetching a stranded item). docs/navigation.md#node-types
+        /// </summary>
+        public virtual bool MayGoOutside => false;
+
+        /// <summary>
         /// Whether the NPC may stand at `point` to use the target: a sell station is not used from
         /// under its gate, and nothing is done from inside one's fences.
         /// docs/invariants.md#a-fenced-sell-station-is-not-somewhere-to-stand

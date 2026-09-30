@@ -9,7 +9,7 @@ namespace NPC.Core.Agents
     /// An NPC's hands: one item at most, frozen like the game's Crate.ParentItems, but moved to the hold point
     /// every frame instead of parented, so it never leaves its room's content. docs/agent.md#7-hands
     /// </summary>
-    public sealed class NpcHands(MonoBehaviour body, Collider? blocker, Func<float, Vector3> groundPos, Func<Room?> room)
+    public sealed class NpcHands(MonoBehaviour body, Collider? blocker, Func<float, Vector3> groundPos, Func<Transform?> itemParent)
     {
         /// <summary>
         /// Waist height above the feet, in front: where a held item's collider centre sits.
@@ -270,16 +270,15 @@ namespace NPC.Core.Agents
         /// </summary>
         private void ReownToCarrierRoom(Grabbable item)
         {
-            Room? current = room();
+            Transform? content = itemParent();
             // activeSelf, not activeInHierarchy: a room switched off leaves the item's own flag alone,
             // a trash can or a sale clears it (Grabbable.Destroy), and that one must stay gone.
-            if (item == null || !item.gameObject.activeSelf || current == null || !current.gameObject.activeInHierarchy) return;
+            if (item == null || !item.gameObject.activeSelf || content == null || !content.gameObject.activeInHierarchy) return;
 
-            Transform content = current.ContentParent;
-            if (content == null || item.transform.parent == content) return;
+            if (item.transform.parent == content) return;
 
             item.SetParent(content);
-            NpcLog.Log.LogInfo($"[ai] Carried '{item.gameObject.name}' into {current.gameObject.name}");
+            NpcLog.Log.LogInfo($"[ai] Carried '{item.gameObject.name}' into {content.gameObject.name}");
         }
 
         private IEnumerator IgnoreBlockerFor(Grabbable item)

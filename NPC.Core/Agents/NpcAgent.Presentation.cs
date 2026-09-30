@@ -129,7 +129,7 @@ namespace NPC.Core.Agents
             if (!cc.isGrounded || currentAnimSpeed < 0.1f)
                 return;
 
-            float walkShakeSpeed = MoveSpeed * 5f;
+            float walkShakeSpeed = WalkSpeed * 5f;
             moveDelta += Time.deltaTime * walkShakeSpeed;
 
             if (moveDelta > 6.2831855f)
