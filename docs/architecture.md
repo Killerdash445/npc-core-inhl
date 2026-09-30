@@ -26,6 +26,7 @@ Read this before opening source files, so you go straight to the two or three th
 | `World/NpcVessels.cs` | whose floor this is and which transform to ride (`FloorOwner`, `AnchorForOwner`, `InteriorOf`) | [game-model](game-model.md#2a-the-ship-never-moves---the-world-moves-around-it) |
 | `World/NpcDoors.cs` | what every NPC knows about doors: open or route around, codes, doorway sensors, airlocks, NPC closes; `INpcDoorUser` | [doors](doors.md) |
 | `World/NpcRooms.cs` | `IRoomKeeper`s: rooms the mods keep loaded | [invariants](invariants.md#a-kept-room-stays-loaded) |
+| `World/NpcItemZones.cs` | the game's item zones forgetting an item switched off inside them: `Leave`, `Prune` | [invariants](invariants.md#an-item-zone-lists-only-items-in-it) |
 | `World/SellPens.cs` | the fenced footprint of every sell station: `InAFencedPen` | [invariants](invariants.md#a-fenced-sell-station-is-not-somewhere-to-stand) |
 | `World/NpcMonster.cs` | the single catch, and the `ai_disable` / `ai_notarget` flags | [invariants](invariants.md#one-catch-at-a-time) |
 | `World/NpcCorpse.cs` | makes a dead NPC's ragdoll carryable, without the game's `Grabbable` | [invariants](invariants.md#mod-state-never-enters-the-vanilla-save) |

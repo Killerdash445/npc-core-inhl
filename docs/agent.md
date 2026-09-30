@@ -281,6 +281,7 @@ lowers it slowly instead. `Turn` sets its facing.
 
 **Putting down** (`PutDown`, `Drop`, `Release`) restores colliders, `restrictGrab`, interpolation, wakes
 physics and calls `SavePosition`. Item and item blocker ignore each other for `PutDownIgnoreSeconds`.
+Picking up takes the item off every item zone first ([an-item-zone-lists-only-items-in-it](invariants.md#an-item-zone-lists-only-items-in-it)).
 While held, the player cannot grab it.
 
 **Which room it belongs to.** Each frame the held item is re-owned to where the carrier stands

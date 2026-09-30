@@ -164,6 +164,15 @@ namespace NPC.Core
             }
 
             /// <summary>
+            /// A doorway re-files every item its zone lists; a stored or worn one left the zone switched
+            /// off and never exited. docs/invariants.md#an-item-zone-lists-only-items-in-it
+            /// </summary>
+            [HarmonyPatch(typeof(EntryDetector), "CheckItemParents")]
+            [HarmonyPrefix]
+            public static void EntryDetector_CheckItemParents_Prefix(EntryDetector __instance) =>
+                NpcItemZones.Prune(GameInternals.EntryDetectorAccess.GetItemZone(__instance), __instance.gameObject.name);
+
+            /// <summary>
             /// A gate's AntiCrasher just undid a close, and nothing in the game will ever retry it. The NPC
             /// standing in it owns the fix: docs/doors.md#4-closes-an-npc-blocked
             /// </summary>

@@ -393,3 +393,5 @@ virtual NPC.Core.Agents.ReachTask.StandAllowed(UnityEngine.Vector3 point) -> boo
 virtual NPC.Core.Agents.ReachTask.StandOffs.get -> float[]!
 ~override NPC.Core.Navigation.NavPath.Equals(object obj) -> bool
 ~override NPC.Core.Navigation.NavPath.ToString() -> string
+NPC.Core.World.NpcItemZones
+static NPC.Core.World.NpcItemZones.Leave(Grabbable! item) -> int

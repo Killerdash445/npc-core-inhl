@@ -208,6 +208,10 @@ namespace NPC.Core
             // docs/invariants.md#npc-closes-must-not-move-the-player
             private static readonly FieldInfo? CurrentPlayer = Field<Player>(typeof(EntryDetector), "player", "keeping NPCs' door closes from moving the player between rooms");
 
+            private static readonly FieldInfo? ItemZone = Field<ItemDetector>(typeof(EntryDetector), "itemDetector",
+                "keeping doorways from re-filing items that left them switched off");
+
+            internal static ItemDetector? GetItemZone(EntryDetector? detector) => Get<ItemDetector>(ItemZone, detector);
             internal static Room? GetInnerRoom(EntryDetector? detector) => Get<Room>(InnerRoom, detector);
             internal static Room? GetOuterRoom(EntryDetector? detector) => Get<Room>(OuterRoom, detector);
             internal static Transform? GetRotationReference(EntryDetector? detector) => Get<Transform>(RotationReference, detector);
@@ -309,6 +313,23 @@ namespace NPC.Core
         /// SellStation: the item zone a sell pen encloses.
         /// docs/invariants.md#a-fenced-sell-station-is-not-somewhere-to-stand
         /// </summary>
+        internal static class ItemDetectorAccess
+        {
+            private static readonly MethodInfo? ClearItem = Method(typeof(ItemDetector), "ClearItem", [typeof(Grabbable)],
+                "items an NPC picks up or a player stores leaving doorway zones");
+
+            /// <summary>
+            /// The zone's own exit bookkeeping (list and OnDestroyed listener); false when it did not list the item.
+            /// </summary>
+            internal static bool Forget(ItemDetector zone, Grabbable item)
+            {
+                if (ClearItem == null || !zone.Items.Contains(item)) return false;
+
+                ClearItem.Invoke(zone, [item]);
+                return true;
+            }
+        }
+
         internal static class SellStationAccess
         {
             private static readonly FieldInfo? ItemDetector = Field<ItemDetector>(typeof(SellStation), "itemDetector", "keeping NPCs out of sell station pens");

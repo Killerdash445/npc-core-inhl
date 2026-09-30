@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using NPC.Core.World;
 using UnityEngine;
 
 namespace NPC.Core.Agents
@@ -104,6 +105,8 @@ namespace NPC.Core.Agents
             }
             rb.interpolation = RigidbodyInterpolation.None;
             item.FreezePhysics();
+            // Its colliders go off inside whatever zone it lay in: docs/invariants.md#an-item-zone-lists-only-items-in-it
+            NpcItemZones.Leave(item);
             // After the freeze, which may switch the static collider on.
             colliders.Clear();
             foreach (Collider collider in item.GetComponentsInChildren<Collider>())

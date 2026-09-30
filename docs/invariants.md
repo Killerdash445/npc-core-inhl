@@ -986,6 +986,20 @@ that room once the player carried it away.
 from `Follow` and `Release`; a mod putting an item down asks `ItemParentAt` too (YourBuddy's
 `BuddySuit.TakeOff`).
 
+### an-item-zone-lists-only-items-in-it
+
+**Rule.** An item whose colliders or object an NPC switches off (picked up, worn) is first taken off
+every `ItemDetector` list (`NpcItemZones.Leave`). Before a doorway re-files its list
+(`EntryDetector.CheckItemParents`), switched-off items are dropped from it.
+
+**Why.** An `ItemDetector` forgets an item only in `OnTriggerExit`, which Unity does not send for a
+collider disabled inside the trigger. The stale entry stayed, and every later door open re-parented
+the item into that doorway's room, wherever it lay. It vanished when that room was culled. The player's
+own belt, backpack and suit equip switch items off the same way.
+
+**Enforced in.** `NpcHands.PickUp`, `Patches.Doors` (`CheckItemParents` prefix) via
+`NpcItemZones.Prune`; a mod switching an item off calls `Leave` (YourBuddy's `BuddySuit.Wear`).
+
 ### player-icon-fix-is-one-directional
 
 **Rule.** The `UpdatePlayerIcon` prefix may only turn the icon **on**, and only when the floor under
