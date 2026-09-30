@@ -116,6 +116,31 @@ See [agent.md §6](agent.md#6-walking-into-reach). `ReachStandOffs`, `ReachDist`
 | `ReachGiveUpDelay` | 60 s | per unit, after giving up |
 | `ReachReplanDelay` | 5 s | after no plan |
 
+### Floating - `NpcAgent.Flight.cs`
+
+See [agent.md §8](agent.md#8-floating).
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `InsideGravity` | 9.81 | the gravity inside, as `Airlock.Enter` sets the player's |
+| `FlightAcceleration` / `FlightBrake` | 3 / 3 per s | how fast the velocity eases toward the step, and off without one |
+| `FlyFollowStart` / `FlyFollowStop` | 3 m / 2.2 m | a follow sets off beyond the first and stops at the second |
+| `FlightArrival` | 0.5 m | how near its goal a floating `Pursue` arrives |
+| `FlightSlowdown` / `FlightMinSpeed` | 1.2 per s / 0.4 m/s | slowing near the goal, and the least speed |
+| `FlightAimInterval` / `TrailPointReached` | 0.2 s / 0.6 m | how often the way is looked at again; a trail point this near is reached |
+| `FlightAimMaxCasts` / `FlightAimMissRun` | 48 / 6 | sight lines per look along the trail; misses in a row that end it |
+| `FlightStuckSeconds` / `FlightStuckProgress` | 4 s / 0.5 m | wanting to fly and moving less than this is stuck |
+| `FlightLeash` | 40 m | farther from the player outside, it is moved onto their trail |
+| `RescueBehind` / `RescueCooldown` | 3 m / 5 s | how far behind the player a rescue lands, and how often at most |
+| `FlightDetourMemory` | 0.3 s | a detour found is kept this long while clear |
+
+### The player's trail - `NpcTrail.cs`
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `Spacing` | 0.5 m | a point each time the player is this far from the last |
+| `Capacity` | 400 | past it the older half is thinned to every other point |
+
 ### Carrying - `NpcHands.cs`
 
 See [agent.md §7](agent.md#7-hands).

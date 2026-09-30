@@ -99,7 +99,14 @@ ship's content is off. Found with the scene YAML (`m_MethodName: SetContentEnabl
 - **The cycle moves whoever `playerDetector` holds**, and the items and furniture in the chamber:
   `Exit` sets the player's room to `SpaceRoom` and opens the outer door; `Enter` sets
   `connectedRoom` and opens the inner door. Both refuse to run without the player in the chamber.
-- An agent copies it from the doors: [an-airlock-is-crossed-by-its-cycle](invariants.md#an-airlock-is-crossed-by-its-cycle).
+  `OnExit` fires before `PlayerShip.SetContentEnabled(false)`, `OnEnter` before `(true)`.
+- **Gravity is the player's own number**, not a place: `Exit` sets `Player.Data.gravity` to the
+  airlock's `ExitGravity`, `Enter` to 9.81. `ExitGravity` is 0 for the ship's airlock, Oxygen's
+  `AirlockL` and `AirlockR`, Solar's and the Shipyard's, and 0.5 for the FuelStation's two. Inside
+  the wreck (`DestroyedSpaceShip`, no `Environment`) it stays 0: no airlock leads in.
+- An agent copies both: [an-airlock-is-crossed-by-its-cycle](invariants.md#an-airlock-is-crossed-by-its-cycle).
+- **Oxygen's two exit airlocks are linked** (`OxygenStation.Awake`): leaving through one opens the
+  other's outer door too.
 - **At a FuelStation dock** (`FuelStation.DockRefresh`, first dock only) the stuff airlock is left
   open inside and the refinery airlock open to the surface. `Enter` switches the surface's floor
   content (`asteroidRoom`) off.
@@ -254,7 +261,7 @@ What the player's sum has and an agent's does not (so the player can die first i
 | Source | Threat | Why an agent omits it |
 |---|---|---|
 | `Hunger` (satiety ≤ 250) | 6 | an agent has no satiety |
-| out of bounds in low gravity | 10 | an agent never goes outside |
+| out of bounds in low gravity | 10 | a floating agent keeps with the player instead ([agent.md §8](agent.md#8-floating)) |
 | heartbeat > 160 / > 200 | 3 / 10 | not reachable from buffs alone |
 
 **Suits.** `Player.Temperature` adds the suit's `TemperatureResistance`; an `isolated` suit reads
@@ -269,7 +276,7 @@ An agent counts `NpcAgentSettings.SuitTemperatureResistance`, 100 by default (a 
 feels like 41 °C to both (`FeltTemperature`, which a mod's own danger bands can use too). With
 `Suited` on the agent wears an isolated suit itself: `AtmosphereThreat` is 0 whatever the room,
 space included, and the agent is allowed outside ([navigation.md](navigation.md#node-types)) - a
-fall 25 m below the player still teleports it back. A player in a SpaceSuit, or no suit, is otherwise
+fall 25 m below the player still teleports it back, unless it floats. A player in a SpaceSuit, or no suit, is otherwise
 not mirrored.
 
 **The game tick.** `GameManager.FixedUpdate` fires `OnTick` once `tickDelta` reaches `tickTime`,
@@ -286,6 +293,15 @@ order changed.
 
 `OTHER air` means they read different `Environment`s - a bug. Same threat, different counter is the
 1-in-5 roll.
+
+### Flying in zero gravity
+
+`PlayerController.Move` with `Gravity` 0 (`PlayerController.cs:287-299`): the velocity eases toward
+the input at `spaceAcceleration` 3 per second and coasts off at `spaceDrag` 0.5 (5 times that
+touching a floor); jump and crouch push up and down. The speed is `movementSpeed` 3 m/s, with no
+suit slowdown. It moves by `CharacterController.Move`, so it collides as walking does. The capsule
+is 1 m tall and 0.2 m wide (`Player.prefab`). The animator has only idle and walk. An agent's flight
+copies this ([agent.md §8](agent.md#8-floating)).
 
 ### Footstep sounds
 

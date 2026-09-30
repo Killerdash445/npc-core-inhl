@@ -21,7 +21,7 @@ namespace NPC.Core
     /// </summary>
     internal static class Patches
     {
-        [HarmonyPatch, Description("the shared tick: nav-graph autosave, registry upkeep, body collision pairs, NpcEvents.Tick")]
+        [HarmonyPatch, Description("the shared tick: nav-graph autosave, registry upkeep, body collision pairs, the airlocks, the trail outside, NpcEvents.Tick")]
         internal static class Tick
         {
             /// <summary>
@@ -38,6 +38,8 @@ namespace NPC.Core
                 if (NpcMonster.Any) NpcMonster.Apply();
                 NpcLifecare.Tick();
                 NpcRegistry.KeepBodiesApart();
+                NpcAirlocks.Tick();
+                NpcTrail.Tick();
                 NpcTalkWindow.Ensure();
                 NpcCorePlugin.EnsureNodeEditor();
                 NpcCorePlugin.CheckForMergedCopies();
@@ -68,6 +70,8 @@ namespace NPC.Core
         private static void ResetScene()
         {
             NpcDoors.ResetScene();
+            NpcAirlocks.ResetScene();
+            NpcTrail.ResetScene();
             NpcMonster.ResetScene();
             NpcRegistry.ResetScene();
             NpcEvents.RaiseWorldReset();
@@ -328,8 +332,8 @@ namespace NPC.Core
             }
 
             /// <summary>
-            /// An agent with no floor of its own, or in the collar, goes aboard as the game's own NPC
-            /// does (Docker.Undock); one elsewhere on the station is parked with it.
+            /// An agent with no floor of its own, in the collar, or floating outside, goes aboard as the
+            /// game's own NPC does (Docker.Undock); one elsewhere on the station is parked with it.
             /// docs/invariants.md#an-npc-rides-its-own-floor
             /// </summary>
             [HarmonyPatch(typeof(Docker), nameof(Docker.Undock))]
@@ -347,10 +351,11 @@ namespace NPC.Core
                         if (!agent.gameObject.activeInHierarchy) continue;
 
                         NpcVessels.FloorOwner(agent.transform.position, out string? owner, out _);
-                        if (owner != null) continue;
+                        // docs/invariants.md#an-npc-rides-its-own-floor
+                        if (owner != null && !agent.Floating) continue;
                     }
                     using NpcRegistry.ActingScope scope = NpcRegistry.Acting(agent);
-                    agent.PullAboard(ship.Airlock.transform.position);
+                    agent.PullAboard(ship.Airlock.transform.position, "Undocked with nothing underfoot");
                 }
             }
         }

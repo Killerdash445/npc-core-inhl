@@ -2,7 +2,6 @@ using System;
 using NPC.Core.Navigation;
 using NPC.Core.World;
 using Space;
-using Space.Data;
 using UnityEngine;
 
 namespace NPC.Core.Agents
@@ -12,7 +11,6 @@ namespace NPC.Core.Agents
     /// </summary>
     public sealed partial class NpcAgent
     {
-        private float gravity = 9.81f;
         private bool wantJump = false;
         private float jumpCooldownUntil = 0f;
         private const float JumpVelocity = 4.5f;
@@ -75,25 +73,33 @@ namespace NPC.Core.Agents
                     continue; // started overlapped, not blocking
                 }
 
-                Collider hitCollider = hit.collider;
-                if (IsIgnorableCollider(hitCollider)) continue;
+                if (PassesThrough(hit.collider, hit.point)) continue;
                 // A ramp or a low step is ground, not a wall - steering it away from a
                 // staircase is what stopped the NPC climbing.
                 // docs/invariants.md#walkable-ground-is-not-an-obstacle
                 if (IsWalkableGround(hit, dir)) continue;
-                // An opened (or currently opening) gate panel is the doorway - the NPC
-                // must push forward through the opening, not path around the door leaf.
-                // Otherwise, the whiskers see a "wall" that oscillates it left and right.
-                Gate hitGate = hitCollider.GetComponentInParent<Gate>();
-                if (hitGate != null && hitGate.Opened) continue;
-                // Judged at the contact point, not collider-wide: the wall that parents
-                // a door ('wall_long_door') must keep blocking everywhere except in
-                // the doorway itself. docs/invariants.md#gate-frame-hit-point
-                if (NavProbe.IsDoorGeometryNearOpenGate(hitCollider, hit.point)) continue;
 
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// What the body goes through at `point`, walking or flying: itself, the player, another NPC, and
+        /// an open doorway.
+        /// </summary>
+        private bool PassesThrough(Collider hitCollider, Vector3 point)
+        {
+            if (IsIgnorableCollider(hitCollider)) return true;
+            // An opened (or currently opening) gate panel is the doorway - the NPC
+            // must push forward through the opening, not path around the door leaf.
+            // Otherwise, the whiskers see a "wall" that oscillates it left and right.
+            Gate hitGate = hitCollider.GetComponentInParent<Gate>();
+            if (hitGate != null && hitGate.Opened) return true;
+            // Judged at the contact point, not collider-wide: the wall that parents
+            // a door ('wall_long_door') must keep blocking everywhere except in
+            // the doorway itself. docs/invariants.md#gate-frame-hit-point
+            return NavProbe.IsDoorGeometryNearOpenGate(hitCollider, point);
         }
 
         /// <summary>
@@ -742,10 +748,13 @@ namespace NPC.Core.Agents
 
         private void ApplyMovement(Vector3 desired, bool wantMove)
         {
-            // Gravity; SceneLoader/GameData are unavailable outside a game scene,
-            // in which case the default multiplier applies.
-            GameSettingsData? settingsData = SceneLoader.Instance != null ? SceneLoader.Instance.GameData?.Settings : null;
-            gravity = 9.81f * (settingsData?.gravityMultiplier ?? 1f);
+            if (Floating)
+            {
+                ApplyFlight(desired, wantMove);
+                return;
+            }
+            // The gravity of its side, as PlayerController.Gravity: docs/agent.md#8-floating
+            float gravity = sideGravity * GravityMultiplier;
 
             if (wantJump && cc.isGrounded) verticalVelocity = JumpVelocity;
             else if (!cc.isGrounded) verticalVelocity -= gravity * Time.deltaTime;

@@ -26,6 +26,8 @@ Read this before opening source files, so you go straight to the two or three th
 | `World/NpcVessels.cs` | whose floor this is and which transform to ride (`FloorOwner`, `AnchorForOwner`, `InteriorOf`) | [game-model](game-model.md#2a-the-ship-never-moves---the-world-moves-around-it) |
 | `World/NpcDoors.cs` | what every NPC knows about doors: open or route around, codes, doorway sensors, airlocks, NPC closes; `INpcDoorUser` | [doors](doors.md) |
 | `World/NpcRooms.cs` | `IRoomKeeper`s: rooms the mods keep loaded | [invariants](invariants.md#a-kept-room-stays-loaded) |
+| `World/NpcAirlocks.cs` | the player's airlock cycles (`OnExit`, `OnEnter`) moving the NPCs in the chamber | [invariants](invariants.md#an-airlock-is-crossed-by-its-cycle) |
+| `World/NpcTrail.cs` | where the player went outside, for a floating NPC to fly along | [agent](agent.md#8-floating) |
 | `World/NpcItemZones.cs` | the game's item zones forgetting an item switched off inside them: `Leave`, `Prune` | [invariants](invariants.md#an-item-zone-lists-only-items-in-it) |
 | `World/SellPens.cs` | the fenced footprint of every sell station: `InAFencedPen` | [invariants](invariants.md#a-fenced-sell-station-is-not-somewhere-to-stand) |
 | `World/NpcMonster.cs` | the single catch, and the `ai_disable` / `ai_notarget` flags | [invariants](invariants.md#one-catch-at-a-time) |
@@ -37,7 +39,7 @@ Read this before opening source files, so you go straight to the two or three th
 | `Saves/CoreSidecar.cs` | NPC.Core's own `.npccore`: the door codes | §4 |
 | `Interaction/NpcInteraction.cs` | which NPC answers Interact, the input handover, each conversation's log; `INpcConversation` | [interaction](interaction.md) |
 | `Interaction/NpcTalkWindow.cs`, `TalkSkin.cs` | the one Interact listener; the talk window and how it is drawn | [interaction](interaction.md#2-the-panel) |
-| `Agents/NpcAgent*.cs` | the walking agent: walks and plan following, steering and recovery, doors, rooms, vessels, space, air, the catch, death, footsteps, debug lines | [agent](agent.md) |
+| `Agents/NpcAgent*.cs` | the walking agent: walks and plan following, steering and recovery, doors, rooms, vessels, space, flight in zero gravity, air, the catch, death, footsteps, debug lines | [agent](agent.md) |
 | `Agents/INpcBrain.cs`, `NpcActivity.cs`, `NpcAgentSettings.cs`, `NpcBody.cs` | what an agent asks its mod, what it may do, the body it drives and who it is | [agent](agent.md#1-attaching-an-agent) |
 | `Agents/ReachTask.cs`, `NpcHands.cs` | something to walk up to and use; one held item | [agent](agent.md#6-walking-into-reach) |
 
@@ -73,6 +75,8 @@ an agent's `INpcBrain`. Nothing in NPC.Core knows any mod.
 | Collider kinds, floor answers | `NavProbe.ColliderKinds` / `FloorAnswers` | every frame |
 | Scene arrays | `SceneScan.ThisFrame` | every frame |
 | Doorway sensors (by gate), airlocks, pin panels | `NpcDoors` | 5 s TTL each; `ResetScene` on a new game or a load |
+| Airlocks listened to | `NpcAirlocks.Listening` | swept again every 30 s; `ResetScene` |
+| The player's trail outside | `NpcTrail.Points` | a new walk outside, the world moving; `ResetScene` |
 | Gates routing avoids | `NpcDoors.ImpassableGates` | 1 s TTL; `ResetScene` |
 | Sell station pens | `SellPens.Pens` | 10 s TTL |
 | Lifecare icons | `NpcLifecare.Icons` | re-created when a clone is lost; an NPC's goes when it unregisters |

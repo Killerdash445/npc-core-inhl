@@ -176,10 +176,12 @@ namespace NPC.Core.Agents
 
         /// <summary>
         /// Walks to a goal that moves, the player say, replanning as it goes; straight at it when the graph
-        /// has no plan. The brain decides when to stop: docs/agent.md#5-walks
+        /// has no plan. The brain decides when to stop: docs/agent.md#5-walks. Floating, it flies there.
         /// </summary>
         public Vector3 Pursue(Vector3 goal, out bool wantMove)
         {
+            if (Floating) return FlyTo(goal, FlightArrival, out wantMove);
+
             wantMove = false;
 
             // Commit to the current plan while it still holds; replanning every tick
@@ -445,10 +447,12 @@ namespace NPC.Core.Agents
         /// <summary>
         /// Holds position. Only the step-off stretch may move the NPC, so a staying
         /// NPC still clears a doorway it is blocking.
-        /// docs/invariants.md#step-off-applies-in-every-mode
+        /// docs/invariants.md#step-off-applies-in-every-mode. Floating, it hovers.
         /// </summary>
         public Vector3 Stay(out bool wantMove)
         {
+            if (Floating) return Hover(out wantMove);
+
             wantMove = false;
             if (TryStepOff(out Vector3 stepOff))
             {
@@ -738,10 +742,12 @@ namespace NPC.Core.Agents
 
         /// <summary>
         /// Walks to random nodes of `owner` (null: any active node), a short breath between them. A node
-        /// `avoid` accepts is not picked. docs/agent.md#5-walks
+        /// `avoid` accepts is not picked. docs/agent.md#5-walks. Floating, with no nodes out there, it hovers.
         /// </summary>
         public Vector3 Wander(string? owner, Predicate<Vector3>? avoid, out bool wantMove)
         {
+            if (Floating) return Hover(out wantMove);
+
             wantMove = false;
 
             if (TryStepOff(out Vector3 stepOff))

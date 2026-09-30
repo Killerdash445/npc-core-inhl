@@ -30,6 +30,7 @@ NPC.Core.Agents.NpcActivity.NpcActivity() -> void
 NPC.Core.Agents.NpcActivity.NpcActivity(NPC.Core.Agents.NpcRecovery recovery, bool idleWatch, bool spaceOut, bool leavesDoorways) -> void
 NPC.Core.Agents.NpcAgent
 NPC.Core.Agents.NpcAgent.AdvancePlan() -> void
+NPC.Core.Agents.NpcAgent.Air.get -> Environment?
 NPC.Core.Agents.NpcAgent.WaypointOverdue(out float budget) -> bool
 NPC.Core.Agents.NpcAgent.Asleep.get -> bool
 NPC.Core.Agents.NpcAgent.Asleep.set -> void
@@ -48,12 +49,18 @@ NPC.Core.Agents.NpcAgent.FacePoint(UnityEngine.Vector3 point) -> void
 NPC.Core.Agents.NpcAgent.FeltTemperature(Environment! env) -> int
 NPC.Core.Agents.NpcAgent.FloorUnderNpc() -> UnityEngine.Vector3
 NPC.Core.Agents.NpcAgent.FloorUnderPlayer(UnityEngine.Transform! playerTransform) -> float
+NPC.Core.Agents.NpcAgent.Floating.get -> bool
+NPC.Core.Agents.NpcAgent.FlyFollow(Space.Player! player, out bool wantMove) -> UnityEngine.Vector3
+NPC.Core.Agents.NpcAgent.FlySpeed.get -> float
+NPC.Core.Agents.NpcAgent.FlyTo(UnityEngine.Vector3 point, float arrival, out bool wantMove) -> UnityEngine.Vector3
+NPC.Core.Agents.NpcAgent.Gravity.get -> float
 NPC.Core.Agents.NpcAgent.GroundPos(float height) -> UnityEngine.Vector3
 NPC.Core.Agents.NpcAgent.Hands.get -> NPC.Core.Agents.NpcHands!
 NPC.Core.Agents.NpcAgent.HasLeftStairLeg(out float low, out float high) -> bool
 NPC.Core.Agents.NpcAgent.HasMoveTarget.get -> bool
 NPC.Core.Agents.NpcAgent.HasPlanLeft.get -> bool
 NPC.Core.Agents.NpcAgent.HeadAlongPlan(float speed, out bool wantMove) -> UnityEngine.Vector3
+NPC.Core.Agents.NpcAgent.Hover(out bool wantMove) -> UnityEngine.Vector3
 NPC.Core.Agents.NpcAgent.InReach(NPC.Core.Agents.ReachTask! task) -> bool
 NPC.Core.Agents.NpcAgent.IsAboardPlayerShip() -> bool
 NPC.Core.Agents.NpcAgent.IsBeingCaught.get -> bool
@@ -81,6 +88,7 @@ NPC.Core.Agents.NpcAgent.ReleasePlan() -> void
 NPC.Core.Agents.NpcAgent.RideOwner(string! owner, UnityEngine.Transform! anchor) -> void
 NPC.Core.Agents.NpcAgent.SetMoveTarget(UnityEngine.Vector3 target) -> void
 NPC.Core.Agents.NpcAgent.SetOutside(bool value, string! why) -> void
+NPC.Core.Agents.NpcAgent.SetOutside(bool value, string! why, float gravity) -> void
 NPC.Core.Agents.NpcAgent.SimpleAdvance(out bool wantMove) -> UnityEngine.Vector3
 NPC.Core.Agents.NpcAgent.SkippedWaypoint.get -> bool
 NPC.Core.Agents.NpcAgent.SkipWaypoint(string! why) -> void
@@ -328,6 +336,7 @@ static NPC.Core.SceneScan.ThisFrame<T>() -> T![]!
 static NPC.Core.World.NpcDoors.AnyKnownDoorMatches() -> bool
 static NPC.Core.World.NpcDoors.BlocksRouting(Gate! gate) -> bool
 static NPC.Core.World.NpcDoors.ChamberAt(UnityEngine.Vector3 point) -> Airlock?
+static NPC.Core.World.NpcDoors.ChamberAt(UnityEngine.Vector3 point, bool withShip) -> Airlock?
 static NPC.Core.World.NpcDoors.ChamberCenter(Airlock! airlock) -> UnityEngine.Vector3
 static NPC.Core.World.NpcDoors.Detectors.get -> System.Collections.Generic.IReadOnlyList<EntryDetector!>!
 static NPC.Core.World.NpcDoors.DetectorsVersion.get -> int

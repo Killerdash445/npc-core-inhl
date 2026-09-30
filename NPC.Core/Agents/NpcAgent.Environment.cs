@@ -189,9 +189,9 @@ namespace NPC.Core.Agents
         }
 
         /// <summary>
-        /// Keeps the NPC's current room content enabled.
+        /// Keeps the NPC's current room content enabled; null holds none.
         /// </summary>
-        private void SetForcedRoom(Room room)
+        private void SetForcedRoom(Room? room)
         {
             if (forcedRoom == room) return;
 
@@ -449,6 +449,11 @@ namespace NPC.Core.Agents
         }
 
         /// <summary>
+        /// The air it breathes: its room's environment, null in space. A brain's own danger test reads it.
+        /// </summary>
+        public Environment? Air => currentlyInSpace ? null : currentEnvironmentRef;
+
+        /// <summary>
         /// True when the NPC is aboard the player's ship. The floor decides;
         /// `currentRoomRef` looks more authoritative but is only the last doorway
         /// crossed. docs/invariants.md#aboard-is-answered-by-the-floor
@@ -456,7 +461,8 @@ namespace NPC.Core.Agents
         public bool IsAboardPlayerShip()
         {
             SpaceShip? ship = GameManager.Instance != null ? GameManager.Instance.PlayerShip : null;
-            if (ship == null) return false;
+            // Floating over the hull is not aboard.
+            if (ship == null || outside) return false;
 
             switch (NpcVessels.FloorOwner(transform.position))
             {
@@ -523,9 +529,16 @@ namespace NPC.Core.Agents
             UpdateAirlockSide();
 
             GameManager gm = GameManager.Instance;
+            // Left floating outside, it would ride the ship's frame wherever the ship flies:
+            // docs/invariants.md#an-npc-rides-its-own-floor
+            if (Floating && gm.PlayerShip != null && NpcVessels.WorldMoving())
+            {
+                PullAboard(NpcDoors.ChamberCenter(gm.PlayerShip.Airlock), "The ship moved off with it floating outside");
+                return;
+            }
             // The last trigger is a fall, not a place: an NPC 25m under the player is dropping
-            // into the void even when it is allowed outside.
-            bool fellBehind = player != null && player.Controller != null &&
+            // into the void even when it is allowed outside. Floating, nothing falls.
+            bool fellBehind = !Floating && player != null && player.Controller != null &&
                               transform.position.y < player.Controller.CachedTransform.position.y - 25f;
             bool inSpace = outside ||
                 (currentRoomRef != null && gm.SpaceRoom != null && currentRoomRef == gm.SpaceRoom) ||
@@ -566,8 +579,8 @@ namespace NPC.Core.Agents
         }
 
         /// <summary>
-        /// Outside a station's airlock, under open sky: the side an airlock's chamber gave it when
-        /// it last stood in one. docs/invariants.md#an-airlock-is-crossed-by-its-cycle
+        /// Outside an airlock, on a surface or floating: the side the last cycle or chamber gave it.
+        /// docs/invariants.md#an-airlock-is-crossed-by-its-cycle
         /// </summary>
         public bool IsOutside => outside;
 
@@ -575,23 +588,59 @@ namespace NPC.Core.Agents
 
         /// <summary>
         /// In a chamber, the NPC is on the side whose door alone stands open - what the game's cycle
-        /// does to the player. Out of one, the side it had holds.
+        /// does to the player. Out of one, the side it had holds. The ship's airlock is left to its
+        /// cycle (CycledWith): docking opens both its doors at once.
         /// </summary>
         private void UpdateAirlockSide()
         {
+            inChamber = NpcDoors.ChamberAt(transform.position, withShip: true) != null;
             Airlock? chamber = NpcDoors.ChamberAt(transform.position);
             if (chamber == null || !NpcDoors.TryChamberSide(chamber, out bool toSpace)) return;
 
-            // Coming in, the NPC is where Airlock.Enter puts the player: the room beside the chamber.
-            // Room tracking was off outside, and an airlock has no doorway sensor.
-            if (outside && !toSpace && GameInternals.AirlockAccess.GetConnectedRoom(chamber) is { } inside &&
-                inside != currentRoomRef)
+            if (outside && !toSpace) EnterThrough(chamber);
+            SetOutside(toSpace, "airlock '" + chamber.gameObject.name + "' is open to " + (toSpace ? "space" : "the inside"),
+                chamber.ExitGravity);
+        }
+
+        /// <summary>
+        /// In some airlock's chamber, the ship's included, as of the last slow phase 1: the next cycle
+        /// may shut a door on it.
+        /// </summary>
+        private bool inChamber;
+
+        /// <summary>
+        /// Coming in, the NPC is where Airlock.Enter puts the player: the room beside the chamber.
+        /// Room tracking was off outside, and an airlock has no doorway sensor. Held again even when it is
+        /// the room it went out from: going out let go of it.
+        /// </summary>
+        private void EnterThrough(Airlock airlock)
+        {
+            if (GameInternals.AirlockAccess.GetConnectedRoom(airlock) is not { } inside) return;
+
+            currentRoomRef = inside;
+            hasKnownRoom = true;
+            SetForcedRoom(inside);
+        }
+
+        /// <summary>
+        /// From NpcAirlocks: the player's cycle moved whoever stood in the chamber, this NPC too if it
+        /// stood there. Out, only an NPC that may be outside goes; any other is left to the space rescue,
+        /// or to the parking at the ship's airlock. docs/invariants.md#an-airlock-is-crossed-by-its-cycle
+        /// </summary>
+        internal void CycledWith(Airlock airlock, bool toSpace)
+        {
+            if (IsDead || !isActiveAndEnabled || NpcDoors.ChamberAt(transform.position, withShip: true) != airlock) return;
+
+            string airlockName = airlock.gameObject.name;
+            if (!toSpace)
             {
-                currentRoomRef = inside;
-                hasKnownRoom = true;
-                SetForcedRoom(inside);
+                EnterThrough(airlock);
+                SetOutside(false, "cycled in through '" + airlockName + "' with you");
+                return;
             }
-            SetOutside(toSpace, "airlock '" + chamber.gameObject.name + "' is open to " + (toSpace ? "space" : "the inside"));
+            if (settings.KeepOutOfSpace && !settings.Suited) return;
+
+            SetOutside(true, "cycled out through '" + airlockName + "' with you", airlock.ExitGravity);
         }
 
         private Transform? itemParentCache;
@@ -655,14 +704,28 @@ namespace NPC.Core.Agents
 
         /// <summary>
         /// Moves the NPC to a side of the airlocks: for a mod that walked it through one and knows
-        /// where it came out. Outside counts as space; only a suited NPC stays there.
+        /// where it came out. Outside counts as space; only a suited NPC stays there. It keeps the gravity
+        /// it has outside, or a surface's full gravity coming from inside.
         /// </summary>
-        public void SetOutside(bool value, string why)
-        {
-            if (outside == value) return;
+        public void SetOutside(bool value, string why) => SetOutside(value, why, value && outside ? sideGravity : InsideGravity);
 
+        /// <summary>
+        /// The same, with the gravity outside: the ExitGravity of the airlock it went through, as
+        /// Airlock.Exit sets the player's. 0 floats. Ignored inside. docs/agent.md#8-floating
+        /// </summary>
+        public void SetOutside(bool value, string why, float gravity)
+        {
+            float sideValue = value ? Mathf.Max(0f, gravity) : InsideGravity;
+            if (outside == value && Mathf.Approximately(sideGravity, sideValue)) return;
+
+            bool wasFloating = Floating;
             outside = value;
-            NpcLog.Log.LogInfo("[ai] " + Name + (value ? " is outside now - " : " is inside again - ") + why);
+            sideGravity = sideValue;
+            // docs/invariants.md#an-unloaded-ship-parks-the-npc
+            if (value) SetForcedRoom(null);
+            if (Floating != wasFloating) OnFloatingChanged();
+            NpcLog.Log.LogInfo("[ai] " + Name + (value ? " is outside now - " : " is inside again - ") + why +
+                               (value ? " (gravity " + sideValue.ToString("0.##") + ")" : ""));
         }
 
         /// <summary>
@@ -680,7 +743,7 @@ namespace NPC.Core.Agents
         /// Moves the NPC aboard when it has no floor of its own to ride - the game
         /// does exactly this to its own free-roaming NPC on undock (Docker.Undock).
         /// </summary>
-        internal void PullAboard(Vector3 position)
+        internal void PullAboard(Vector3 position, string why)
         {
             if (IsDead) return;
             // Back to the ship's frame, which is the scene root - the next owner probe
@@ -690,8 +753,12 @@ namespace NPC.Core.Agents
             navPlan = null;
             CurrentOwner = null;
             hasSafePosition = false;
-            NpcLog.Log.LogWarning("[ai] Undocked with nothing underfoot - moved to the ship airlock");
+            NpcLog.Log.LogWarning("[ai] " + why + " - moved to the ship airlock");
             SetOutside(false, "moved aboard");
+            // In the room Airlock.Enter gives the player; never while the player is out and the ship is dark.
+            SpaceShip? ship = GameManager.Instance != null ? GameManager.Instance.PlayerShip : null;
+            Player? pilot = NpcPlayer.Pilot;
+            if (ship != null && pilot != null && !IsPlayerInSpace(pilot)) EnterThrough(ship.Airlock);
         }
 
         /// <summary>
@@ -700,7 +767,13 @@ namespace NPC.Core.Agents
         /// </summary>
         internal void ParkWithShip()
         {
-            if (parkedWithShip || IsDead || !gameObject.activeInHierarchy || !IsAboardPlayerShip()) return;
+            if (parkedWithShip || IsDead || !gameObject.activeInHierarchy) return;
+            if (outside)
+            {
+                NpcLog.Log.LogInfo("[ai] " + Name + " is outside with you - not parked with the ship");
+                return;
+            }
+            if (!IsAboardPlayerShip()) return;
 
             parkedWithShip = true;
             Hands.Drop("the ship is unloading");
@@ -759,7 +832,10 @@ namespace NPC.Core.Agents
             cc.enabled = true;
             hasBaseFloor = false;
             baseFloorMismatchTimer = 0f;
-            if (stopFalling) verticalVelocity = 0f;
+            if (!stopFalling) return;
+
+            verticalVelocity = 0f;
+            flightVelocity = Vector3.zero;
         }
 
         /// <summary>
@@ -1034,14 +1110,14 @@ namespace NPC.Core.Agents
                 ragdollObject.transform.parent = null;
                 ragdollObject.SetActive(true);
 
-                GameSettingsData? settingsData = SceneLoader.Instance != null ? SceneLoader.Instance.GameData?.Settings : null;
-                float gravityScale = 9.81f * (settingsData?.gravityMultiplier ?? 1f);
+                // Floating, the corpse floats too.
+                bool falls = sideGravity * GravityMultiplier > 0.01f;
 
                 foreach (Rigidbody rb in ragdollObject.GetComponentsInChildren<Rigidbody>(true))
                 {
                     rb.isKinematic = false;
                     rb.detectCollisions = true;
-                    rb.useGravity = gravityScale > 0.01f;
+                    rb.useGravity = falls;
                 }
 
                 foreach (Collider col in ragdollObject.GetComponentsInChildren<Collider>(true))

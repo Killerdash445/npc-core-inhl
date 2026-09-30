@@ -833,23 +833,27 @@ not a radius around the gate.
 
 ### an-airlock-is-crossed-by-its-cycle
 
-**Rule.** An NPC is inside or outside the station airlocks, and changes side only in a chamber:
-standing in one, it is on the side whose door alone is open - what the game's cycle does to the
-player (`Airlock.Exit`, `Enter`). Outside counts as space. Routing never crosses a shut
-airlock door, the ship's own included, and a wander picks nodes on its own side only.
+**Rule.** An NPC is inside or outside the airlocks, and changes side only in a chamber. The
+player's cycle (`Airlock.OnExit`, `OnEnter`) moves every NPC standing in the chamber with them to
+the player's new side and gravity, the ship's airlock included; out, only one that may be outside
+(suited, or not kept out of space). Standing in a station airlock's chamber, an NPC is also on the
+side whose door alone is open. Outside counts as space. Routing never crosses a shut airlock door,
+the ship's own included, and a wander picks nodes on its own side only.
 
 **Why.** An airlock's doorway is not a room `EntryDetector`, so room tracking left an NPC on the
 surface "in FuelMain"; and with airlock doors always routable, an NPC outside planned to indoor
 nodes and walked into the shut inner door. An undocked ship's graph still has its collar node past
 the airlock's outer door, and a wander walked into that door. The ship's airlock is left out of the
-side test only: its outer door opens onto a docking collar, and `Docker.Dock` opens both doors at
-once.
+door test only: its outer door opens onto a docking collar, and `Docker.Dock` opens both doors at
+once. Its cycle never runs on a dock, so the cycle is the ship airlock's only test.
 
 Coming in, the NPC's tracked room becomes the airlock's `connectedRoom`, where `Enter` puts the player.
+Its gravity is the player's: `ExitGravity` out, 9.81 in ([agent.md §8](agent.md#8-floating)).
 
-**Enforced in.** `NpcAgent.UpdateAirlockSide`, `IsOutside`, `SetOutside`, `UpdateSpaceState`,
-`UpdateRoomTracking` (skipped outside); `NpcDoors.ChamberAt`, `TryChamberSide`, `BlocksRouting`;
-`NavGraph.RandomNode`, `NpcAgent.TryStartWanderRoute`.
+**Enforced in.** `NpcAirlocks`, `NpcAgent.CycledWith`, `UpdateAirlockSide`, `EnterThrough`,
+`IsOutside`, `SetOutside`, `UpdateSpaceState`, `UpdateRoomTracking` (skipped outside);
+`NpcDoors.ChamberAt`, `TryChamberSide`, `BlocksRouting`; `NavGraph.RandomNode`,
+`NpcAgent.TryStartWanderRoute`.
 
 ### no-safe-spot-in-a-chamber
 
@@ -941,17 +945,22 @@ spot, a mod's save) is stored in that frame. Owners are stored by GameObject nam
 into "open space" and was teleported to the player. Parenting also parks the NPC for free: the
 game deactivates `contentParent` when a station unloads.
 
-Two special cases:
+Three special cases:
 - **Undock:** an agent in the undocking station's collar goes aboard instead of being parked in the
   airlock. Judged in the prefix, before the collar's colliders switch off.
+- **Floating:** with no floor, it rides the scene root, the ship's frame, and never the hull under
+  it: parented into a station's interior it would be parked out there on undock. The world never
+  moves during a walk outside (the airlock locks while the ship moves); once it does - undocked,
+  flown off - the agent goes aboard into the ship's airlock.
 - **Ship rebuild:** `SetShipLevel` moves some rooms 3.75 m. An agent aboard moves with its room; one
   whose room is gone stays and is left to space protection. The plan is dropped, the brain ends a walk
   to an old world point (`INpcBrain.OnShipRebuilt`), and the safe spot becomes the new position, or is
   forgotten when its floor is gone.
 
 **Enforced in.** `NpcAgent.UpdateOwnerAnchor`, `NpcVessels.FloorOwner`, `RememberSafePosition` /
-`TryRecallSafePosition`, `RideOwner`, `RideShipRebuild`; `Patches.Docking`, `Patches.ShipRebuild`;
-YourBuddy's `BuddySaveFile.Owner` / `OwnerLocalPosition`.
+`TryRecallSafePosition`, `RideOwner`, `RideShipRebuild`, `OnFloatingChanged`, `UpdateSpaceState`,
+`PullAboard`; `Patches.Docking`, `Patches.ShipRebuild`; YourBuddy's `BuddySaveFile.Owner` /
+`OwnerLocalPosition`.
 
 ### an-unloaded-ship-parks-the-npc
 
@@ -961,13 +970,17 @@ no room content loaded. Docked (`Autopilot.DockedStation` set), nothing is parke
 unloads whenever you walk into the station
 ([game-model.md](game-model.md#a-spacewalk-unloads-the-players-ship---and-so-does-walking-into-a-station)),
 and an agent aboard then goes on working with its own room loaded. So does one that walks aboard
-while the ship is off.
+while the ship is off. An agent outside is not aboard and is not parked, and it holds no room at
+all: going out drops the room it kept loaded, and `TracksRoom` is false.
 
 **Why.** The NPC's room listener re-enabled the bridge, whose `Autopilot` trigger then unloaded the
-wreck the player had gone out to - no collision outside. Docked, that trigger optimizes nothing.
+wreck the player had gone out to - no collision outside. Docked, that trigger optimizes nothing. The
+room an agent holds as it leaves through the ship's airlock is that bridge, `Front_M00`, the airlock's
+`connectedRoom`.
 
 **Enforced in.** `Patches.ShipContent`, `NpcAgent.ParkWithShip` / `UnparkFromShip`, the
-`isActiveAndEnabled` guard in `OnForcedRoomContentChanged`.
+`isActiveAndEnabled` guard in `OnForcedRoomContentChanged`; `SetOutside`, `TracksRoom`,
+`IsAboardPlayerShip`.
 
 ### a-carried-item-is-put-down-before-a-save
 

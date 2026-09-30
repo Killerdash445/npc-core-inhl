@@ -2,8 +2,8 @@
 
 `Agents/`: an NPC that walks the nav graph on a body your mod built. It plans and follows routes,
 steers, hops low furniture, opens and closes doors ([doors.md §6-10](doors.md#6-opening)), loads rooms,
-rides vessels, stays out of space, breathes, can be caught and dies. It does not decide where to go:
-its **brain** does, through `INpcBrain`.
+rides vessels, stays out of space unless suited, floats and flies in zero gravity (§8), breathes, can be
+caught and dies. It does not decide where to go: its **brain** does, through `INpcBrain`.
 
 NPC.Core never builds a body. YourBuddy's is the player prefab cloned and stripped
 (`YourBuddyPlugin.SpawnBuddy`); a mod with its own locomotion can skip the agent and implement `INpc`
@@ -15,7 +15,8 @@ itself ([api.md §2](api.md#2-registering-an-npc---npccore)).
 | `NpcAgent.Navigation.cs` | the walks (§5): `Pursue`, `Wander`, `Stay`, the plan API, stair legs, step-off, spacing, idle watch |
 | `NpcAgent.Obstacles.cs` | body probes, whisker steering, auto-jump, `ApplyMovement`, stuck and no-progress recovery (§4), `EmergencyUnstick`, blocker diagnostics |
 | `NpcAgent.Doors.cs` | opening, pin panels, close-behind, `NoteCloseFailed`, `DoorwayBlocker`, `StepOutOfDoorway` |
-| `NpcAgent.Environment.cs` | room tracking, loading and release, floor plane, vessels (`UpdateOwnerAnchor`, park, rebuild, undock), space protection, air, the catch, `Die` |
+| `NpcAgent.Environment.cs` | room tracking, loading and release, floor plane, vessels (`UpdateOwnerAnchor`, park, rebuild, undock), the side of the airlocks, space protection, air, the catch, `Die` |
+| `NpcAgent.Flight.cs` | zero gravity (§8): `Gravity`, `Floating`, the flights, the flight frame, recovery |
 | `NpcAgent.Presentation.cs` | footsteps, animator parameters, debug lines, facing |
 | `NpcAgent.Reach.cs`, `ReachTask.cs` | the walk into reach (§6) |
 | `NpcAgent.Carry.cs`, `NpcHands.cs` | the hands (§7) |
@@ -71,7 +72,7 @@ the player, the other NPCs and the body's own controller passing through its con
 | `Mortal` | on | neither the air nor the monster kills it |
 | `CanBeCaught`, `BreathesAir` | on | the monster, or the air, leaves it alone |
 | `SuitTemperatureResistance` | 100 | the suit it feels the air through ([game-model.md](game-model.md#atmosphere-kills-by-the-players-rule)) |
-| `Suited` | off | the air kills it, and `KeepOutOfSpace` teleports it back when it is outside or its room or air is gone. On, it wears an isolated suit: flat 2200/2200 whatever the room, space included, and it may be outside. A fall 25 m below the player still rescues it ([game-model.md](game-model.md#atmosphere-kills-by-the-players-rule)) |
+| `Suited` | off | the air kills it, and `KeepOutOfSpace` teleports it back when it is outside or its room or air is gone. On, it wears an isolated suit: flat 2200/2200 whatever the room, space included, and it may be outside. A fall 25 m below the player still rescues it, unless it floats ([game-model.md](game-model.md#atmosphere-kills-by-the-players-rule)) |
 | `SpeedFactor` | 1 | multiplies `MoveSpeed` into `NpcAgent.WalkSpeed`, the speed every walk uses: a worn suit's `MovementSpeedModifier`, as the game slows the player (Space_Suit 0.4) |
 | `CanJump` | on | never auto-jumps, as a player in an isolated suit cannot ([a-fence-is-not-hopped](invariants.md#a-fence-is-not-hopped)) |
 | `MayGoOutside` | off | routing never enters an [Outdoor node](navigation.md#node-types). On, follow and goto may; flee, hide and errand plans still never do ([navigation.md](navigation.md#node-types)) |
@@ -93,6 +94,7 @@ ai_disable or Asleep        → gravity only
 SlowUpdate                  → one phase, then brain.SlowPhase(phase)
 being caught                → hold still
 brain.OverrideMovement      → the brain's own move, applied as it is
+Floating                    → the flight frame instead of all below (§8)
 brain.Steer                 → desired velocity; HeadAlongPlan marks a stair leg
      ↓
 stuck sidestep                                not on a stair leg
@@ -126,8 +128,8 @@ fifth phase** - it slows every phase to ~0.30 s; add work to an existing one. It
 
 | Phase | The agent | then a brain, such as YourBuddy's |
 |---|---|---|
-| 0 | floor plane, owner anchor, room tracking, environment | loads the rooms that hold a sell station |
-| 1 | airlock side, open-space state and protection | - |
+| 0 | floor plane and owner anchor (not while floating), room tracking, environment | loads the rooms that hold a sell station |
+| 1 | airlock side, open-space state and protection; floating while the world moves: pulled aboard | - |
 | 2 | the Breathless catch | fear |
 | 3 | door close-behind | the decider, the life-support check |
 
@@ -202,6 +204,9 @@ A brain's `Steer` returns one of these, or its own step. Each checks the step-of
 | `SimpleAdvance()` | a committed plan straight from waypoint to waypoint, without the stair or deck rules; planned again from here when the NPC can no longer walk to its waypoint ([a-blocked-stretch-is-planned-again](invariants.md#a-blocked-stretch-is-planned-again)) |
 | `TryStepOff(out v)` | the step-off under way, if any |
 
+Floating, `Pursue` flies to its goal and `Stay` and `Wander` hover (§8), so a brain that never
+thinks about space still does something sane out there.
+
 The plan: `CommitPlan(plan, fresh)` walks it from the top (`fresh` forgets a skipped waypoint),
 `AdvancePlan` passes reached waypoints ([waypoint-advance-is-dual](invariants.md#waypoint-advance-is-dual)),
 `HasLeftStairLeg` says the plan is no longer walkable ([off-the-flight-is-off-the-plan](invariants.md#off-the-flight-is-off-the-plan)),
@@ -214,7 +219,7 @@ seconds)` / `CancelStepOff`, `BodyBlocked`, `StepsOffALedge`, `DetourAngles`, `F
 `FloorUnderPlayer`, `GroundPos`, `OriginToFeet`, `WalkSpeed`, `TeleportTo`, `FacePoint` / `FacePlayer`,
 `LoadRoom`, `OnMyVessel`, `IsAboardPlayerShip`, `IsPlayerInSpace`, `LifeInDanger` (the air is
 killing it now: threat lethal, or the death counter still up), `IsOutside` / `SetOutside` (the
-side of the airlocks, [an-airlock-is-crossed-by-its-cycle](invariants.md#an-airlock-is-crossed-by-its-cycle)), `FeltTemperature`, `Die`,
+side of the airlocks and its gravity, [an-airlock-is-crossed-by-its-cycle](invariants.md#an-airlock-is-crossed-by-its-cycle)), `FeltTemperature`, `Die`,
 `EnsureDebugVisuals`, `IsBeingCaught`, `WasMoving`, `HasMoveTarget`; `CurrentOwner` (the vessel frame
 it rides) and `RideOwner(owner, anchor)` (a restored NPC starts in its saved frame);
 `DescribeSurroundings` (room, air and threat, for a HUD). Constants: `FollowSameLevelDeltaY`, the deck
@@ -297,3 +302,63 @@ a brain puts it down whenever its own task ends. An item deactivated by somethin
 
 The brain's side: `PickUp(item)`, `Item`, `Point` (the hold point), `Forward` and `Extents` (how far
 ahead it is held, and its size), `DistanceTo(point)`, `ReachTo`, `Turn`, `PutDown`, `Drop`, `Release`.
+
+---
+
+## 8. Floating
+
+Outside with no gravity the agent floats and flies, as the player does beyond the zero-g airlocks
+(the ship's, Oxygen's, Solar's, the Shipyard's). There are no nodes out there, and none of the
+walking machinery runs: no doors, hops, whiskers, stairs or floor recoveries.
+
+**Gravity.** `Gravity` is the player's `Data.gravity` rule: 9.81 inside; outside, the `ExitGravity`
+of the airlock it went through (0, or 0.5 at the FuelStation). Walking multiplies it by the game's
+gravity setting, as `PlayerController.Gravity` does. `Floating` is outside with no gravity. The side
+and its gravity change only at an airlock
+([an-airlock-is-crossed-by-its-cycle](invariants.md#an-airlock-is-crossed-by-its-cycle));
+`SetOutside(value, why, gravity)` is for a mod that walked its NPC through one.
+
+**Moving** copies `PlayerController`'s zero-g move: the velocity eases toward the step
+(`FlightAcceleration`) and off without one (`FlightBrake`), up to `FlySpeed`, which is `MoveSpeed`: a
+suit does not slow flight. A wall takes the velocity it stopped. Holding still in an airlock chamber
+stops at once: a body drifting into a closing door fails the player's cycle (`AntiCrasher` →
+`Gate.FailClose`).
+
+```
+brain.Steer → brain.Constrain → SteerInFlight → UpdateFlightRecovery → ApplyMovement → UpdateAnimation
+```
+
+`SteerInFlight` probes ahead with the body's capsule and turns sideways, then over or under, round
+what is in the way; with nothing clear the controller slides along it.
+
+| Flight | Does |
+|---|---|
+| `FlyFollow(player)` | after the player: sets off beyond `FlyFollowStart`, flies on down to `FlyFollowStop`, then hovers |
+| `FlyTo(point, arrival)` | until its middle is within `arrival` of the point |
+| `Hover()` | brakes to a stop |
+
+**The player's trail instead of the graph.** `NpcTrail` records the player every 0.5 m while they are
+outside, the airlock end first. A new walk outside starts a new trail, coming in keeps it, and the
+world moving drops it. A flight goes straight at its goal when a body-wide sphere cast is clear; else
+it walks the trail from the point nearest itself toward the point nearest the goal, and flies to the
+last one it can see. Going the same way it never starts behind the point it already flew to: where
+the trail passes near itself, the nearest point may lie on the other pass and turn it round. The path the player took is one the body fits: their capsule is 0.2 m wide.
+
+**Recovery, a last resort.** Wanting to fly and getting nowhere for `FlightStuckSeconds`: following the
+player outside, it is moved onto their trail at least `RescueBehind` behind them, where it is free and
+in sight of them; following the trail elsewhere, on to the trail point it was flying to, if it can see
+it. Farther than `FlightLeash` from the player outside gets the same move. Each move is a warning in
+the log.
+
+**Frames.** A floating agent rides the scene root and holds no room
+([an-npc-rides-its-own-floor](invariants.md#an-npc-rides-its-own-floor),
+[an-unloaded-ship-parks-the-npc](invariants.md#an-unloaded-ship-parks-the-npc)). Once the world moves,
+it is pulled aboard into the ship's airlock.
+
+| Log line | Means |
+|---|---|
+| `[ai] X is outside now - cycled out through 'ShipAirlock' with you (gravity 0)` | the cycle took it out |
+| `[ai] X is outside with you - not parked with the ship` | the ship unloaded, and it was already out |
+| `[ai] X cannot fly straight there - following your trail (point N of M)` | level 1, when it changes |
+| `[ai] X was stuck floating for 4 s - moved to your trail 3.2 m behind you` | the rescue |
+| `[ai] The ship moved off with it floating outside - moved to the ship airlock` | pulled aboard |

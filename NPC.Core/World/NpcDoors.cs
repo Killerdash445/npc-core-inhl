@@ -423,9 +423,10 @@ namespace NPC.Core.World
         public static Airlock? ChamberAt(Vector3 point) => ChamberAt(point, withShip: false);
 
         /// <summary>
-        /// `withShip`: the player ship's airlock counts too. docs/invariants.md#no-safe-spot-in-a-chamber
+        /// `withShip`: the player ship's airlock counts too, whose doors a docking opens both at once.
+        /// docs/invariants.md#no-safe-spot-in-a-chamber
         /// </summary>
-        internal static Airlock? ChamberAt(Vector3 point, bool withShip)
+        public static Airlock? ChamberAt(Vector3 point, bool withShip)
         {
             RefreshAirlocks();
             if (_airlocks == null) return null;

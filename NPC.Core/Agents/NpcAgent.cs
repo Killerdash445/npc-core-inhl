@@ -238,10 +238,11 @@ namespace NPC.Core.Agents
         }
 
         /// <summary>
-        /// Tracked in this room and able to hold it loaded: a parked NPC holds nothing.
+        /// Tracked in this room and able to hold it loaded: a parked NPC holds nothing, nor does one
+        /// outside (docs/invariants.md#an-unloaded-ship-parks-the-npc).
         /// </summary>
         public bool TracksRoom(Room room) =>
-            !IsDead && isActiveAndEnabled && (room == forcedRoom || room == currentRoomRef);
+            !IsDead && isActiveAndEnabled && !outside && (room == forcedRoom || room == currentRoomRef);
 
         // How NPCs of other mods see this one: docs/invariants.md#one-npc-per-target
         Transform INpc.Transform => transform;
@@ -420,6 +421,13 @@ namespace NPC.Core.Agents
                 return;
             }
 
+            // No floor, so none of the walking machinery: docs/agent.md#8-floating
+            if (Floating)
+            {
+                UpdateFlight(player);
+                return;
+            }
+
             // Where the brain wants to go this frame.
             walkingStairLeg = false;
             Vector3 desired = brain.Steer(player, out bool wantMove);
@@ -484,8 +492,12 @@ namespace NPC.Core.Agents
             switch (slowPhase)
             {
                 case 0:
-                    UpdateBaseFloor();
-                    UpdateOwnerAnchor();
+                    // docs/invariants.md#an-npc-rides-its-own-floor
+                    if (!Floating)
+                    {
+                        UpdateBaseFloor();
+                        UpdateOwnerAnchor();
+                    }
                     UpdateRoomTracking();
                     UpdateEnvironment();
                     break;

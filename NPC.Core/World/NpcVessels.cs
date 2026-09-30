@@ -112,5 +112,19 @@ namespace NPC.Core.World
             Transform? contentParent = GameInternals.SpaceObjectAccess.GetContentParent(spaceObject);
             return contentParent != null ? contentParent : spaceObject.transform;
         }
+
+        /// <summary>
+        /// The ship's engine is moving or turning the world. It never is while the player is outside:
+        /// the airlock display locks then (Airlock.Tick).
+        /// </summary>
+        internal static bool WorldMoving()
+        {
+            GameManager gm = GameManager.Instance;
+            EngineController? engines = gm != null && gm.PlayerShip != null ? gm.PlayerShip.EngineController : null;
+            if (engines == null || engines.Engine == null) return false;
+
+            // engines is only set when gm is.
+            return !gm!.IsStaticWorldPosition || !gm.IsStaticWorldRotation;
+        }
     }
 }
