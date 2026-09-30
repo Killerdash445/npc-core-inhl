@@ -329,8 +329,8 @@ both tests. Same-deck entries and graph edges are unaffected.
 
 ### one-entry-predicate
 
-**Rule.** `FindPath` seeding and `Pursue` commitment both call
-`NavGraph.CanReachEntry`. Never inline a threshold on either side.
+**Rule.** `FindPath` seeding, `Pursue` commitment and `SimpleAdvance`'s stretch check all call
+`NavGraph.CanReachEntry`. Never inline a threshold on any side.
 
 **Why.** If commitment is stricter than seeding, every plan is rejected the tick after it is made
 and the NPC replans forever without moving.
@@ -503,6 +503,20 @@ previous waypoint.
 NPC's offset position clipped railings and made it shuttle between two nodes.
 
 **Enforced in.** `NpcAgent.IsStandingOnRoute`.
+
+### a-blocked-stretch-is-planned-again
+
+**Rule.** `SimpleAdvance` asks every `RouteStretchCheckInterval` whether the NPC can still walk
+straight to its waypoint (`CanReachEntry`). When it cannot, the rest of the plan is planned again from
+where it stands, to the same last waypoint. Not on a link, not across decks, not while it stands on
+the route ([commitment-skips-on-route](#commitment-skips-on-route)). No new route: the plan is kept,
+the stuck recovery still applies, and the check waits `RouteStretchRetryAfterFail`.
+
+**Why.** A seed may be 20 m away down a sight line that flies over furniture. A sidestep round a plant
+pot put the buddy in a side room of the ship. It steered at a Shipyard node through that room's table
+for a minute: the walk had no check, and its back-and-forth reset the no-progress timer.
+
+**Enforced in.** `NpcAgent.ReplanBlockedStretch`, from `SimpleAdvance`.
 
 ### escalate-over-a-window
 
@@ -872,9 +886,8 @@ Never across a doorway the game keeps loaded (`optimize` off).
 One `Room.SetContentEnabled` prefix asks every keeper; a walker releasing rooms asks
 `NpcRooms.ReasonToKeep` too.
 
-**Why.** A mod needs rooms loaded that no NPC stands in: `FindObjectsOfType` skips a switched-off
-object, so YourBuddy's selling run found "no sell station within 80m" of four boxes. A prefix that
-refuses a call is exactly what two mods must not each add ([one-patch-per-game-hook](#one-patch-per-game-hook)).
+**Why.** A mod may need rooms loaded that no NPC stands in, and a prefix that refuses a call is
+exactly what two mods must not each add ([one-patch-per-game-hook](#one-patch-per-game-hook)).
 
 **Enforced in.** `Patches.KeptRooms`, `NpcRooms.AllowSwitch` / `ReasonToKeep`.
 
@@ -930,14 +943,16 @@ YourBuddy's `BuddySaveFile.Owner` / `OwnerLocalPosition`.
 
 ### an-unloaded-ship-parks-the-npc
 
-**Rule.** When the ship unloads - for a spacewalk, or because the player walked fully into a docked
-station ([game-model.md](game-model.md#a-spacewalk-unloads-the-players-ship---and-so-does-walking-into-a-station)) -
-every agent aboard is parked (`SetActive(false)`) before any room goes dark, and woken when the ship
-loads. An agent that walks aboard while the ship is off is not parked; it keeps its room loaded. A parked agent keeps no room content
-loaded.
+**Rule.** When the undocked ship unloads for a spacewalk, every agent aboard is parked
+(`SetActive(false)`) before any room goes dark, and woken when the ship loads. A parked agent keeps
+no room content loaded. Docked (`Autopilot.DockedStation` set), nothing is parked: the ship also
+unloads whenever you walk into the station
+([game-model.md](game-model.md#a-spacewalk-unloads-the-players-ship---and-so-does-walking-into-a-station)),
+and an agent aboard then goes on working with its own room loaded. So does one that walks aboard
+while the ship is off.
 
 **Why.** The NPC's room listener re-enabled the bridge, whose `Autopilot` trigger then unloaded the
-wreck the player had gone out to - no collision outside.
+wreck the player had gone out to - no collision outside. Docked, that trigger optimizes nothing.
 
 **Enforced in.** `Patches.ShipContent`, `NpcAgent.ParkWithShip` / `UnparkFromShip`, the
 `isActiveAndEnabled` guard in `OnForcedRoomContentChanged`.

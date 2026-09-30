@@ -460,9 +460,8 @@ namespace NPC.Core
         internal static class ShipContent
         {
             /// <summary>
-            /// Airlock.Exit unloads the player's ship and Airlock.Enter reloads it; an agent
-            /// aboard is parked in between. Prefix: before the rooms fire OnContentStateChanged.
-            /// docs/invariants.md#an-unloaded-ship-parks-the-npc
+            /// An undocked ship unloading (a spacewalk) parks every agent aboard until it loads again.
+            /// Prefix: before the rooms fire OnContentStateChanged. docs/invariants.md#an-unloaded-ship-parks-the-npc
             /// </summary>
             [HarmonyPatch(typeof(SpaceShip), nameof(SpaceShip.SetContentEnabled))]
             [HarmonyPrefix]
@@ -470,6 +469,13 @@ namespace NPC.Core
             {
                 GameManager gm = GameManager.Instance;
                 if (gm == null || __instance != gm.PlayerShip) return;
+
+                // Docked, the Autopilot trigger unloads nothing, so agents aboard stay awake.
+                if (!value && !string.IsNullOrEmpty(__instance.Autopilot.DockedStation))
+                {
+                    if (NpcLog.Level >= 1) NpcLog.Log.LogInfo("[ai] Player ship unloaded while docked - agents aboard stay awake");
+                    return;
+                }
 
                 foreach (INpc npc in NpcRegistry.Snapshot())
                 {

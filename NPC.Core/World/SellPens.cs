@@ -32,6 +32,10 @@ namespace NPC.Core.World
         }
 
         private static readonly List<Pen> Pens = [];
+        /// <summary>
+        /// Every station that can load, and whether it was loaded when the pens were measured.
+        /// </summary>
+        private static readonly List<(SellStation Station, bool Loaded)> Measured = [];
         private static float _pensAt = -1f;
 
         /// <summary>
@@ -61,16 +65,25 @@ namespace NPC.Core.World
         }
 
         /// <summary>
-        /// Rebuilt on a timer: a station's fences load and unload with its room.
+        /// Rebuilt on a timer, and as soon as a station's room switches on or off: its fences load and
+        /// unload with it, and nothing keeps a sell station's room loaded.
         /// </summary>
         private static void EnsurePens()
         {
-            if ((_pensAt > 0f && Time.time < _pensAt) || !SceneScan.MayRescan(_pensAt <= 0f)) return;
+            if (_pensAt > 0f && Time.time < _pensAt && !AnyStationSwitched()) return;
+            if (!SceneScan.MayRescan(_pensAt <= 0f)) return;
 
             _pensAt = Time.time + SellPenRefresh;
             Pens.Clear();
-            foreach (SellStation station in Object.FindObjectsOfType<SellStation>())
+            Measured.Clear();
+            foreach (SellStation station in Object.FindObjectsOfType<SellStation>(true))
             {
+                if (!station.gameObject.activeSelf) continue;
+
+                bool loaded = station.gameObject.activeInHierarchy;
+                Measured.Add((station, loaded));
+                if (!loaded) continue;
+
                 Bounds pen = default;
                 bool fenced = false;
                 foreach (Collider collider in station.GetComponentsInChildren<Collider>())
@@ -91,6 +104,15 @@ namespace NPC.Core.World
 
                 Pens.Add(new Pen(station, pen));
             }
+        }
+
+        private static bool AnyStationSwitched()
+        {
+            foreach ((SellStation station, bool loaded) in Measured)
+            {
+                if (station != null && station.gameObject.activeInHierarchy != loaded) return true;
+            }
+            return false;
         }
     }
 }

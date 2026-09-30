@@ -56,6 +56,13 @@ namespace NPC.Core.Agents
         private const int EntryBlockedStepOffAfter = 8;
         private int entryBlockedCount = 0;
         private float entryBlockedWindowStart = 0f;
+        /// <summary>
+        /// How often SimpleAdvance asks whether its stretch is still walkable from where the NPC stands.
+        /// docs/invariants.md#a-blocked-stretch-is-planned-again
+        /// </summary>
+        private const float RouteStretchCheckInterval = 1f;
+        private const float RouteStretchRetryAfterFail = 5f;
+        private float routeStretchCheckAt = 0f;
         private Vector3 lastBlockedEntry = Vector3.zero;
 
         // The last graph node the NPC walked away from. Lives outside the plan:
@@ -921,6 +928,9 @@ namespace NPC.Core.Agents
             wantMove = false;
             if (!HasPlanLeft) return Vector3.zero;
 
+            ReplanBlockedStretch();
+            if (!HasPlanLeft) return Vector3.zero;
+
             // HasPlanLeft checked the plan.
             Vector3 waypoint = navPlan!.Value[navPathIndex];
             Vector3 toWaypoint = waypoint - transform.position;
@@ -936,6 +946,48 @@ namespace NPC.Core.Agents
             currentMoveTarget = waypoint;
             hasMoveTarget = true;
             return toWaypoint.normalized * WalkSpeed;
+        }
+
+        /// <summary>
+        /// Pushed off a straight stretch (a sidestep round furniture, a shove), the NPC may no longer have a
+        /// way to its waypoint - behind a wall, in a side room. Then the rest of the plan is planned again
+        /// from here, to the same last waypoint. Same deck only; never a link. docs/invariants.md#a-blocked-stretch-is-planned-again
+        /// </summary>
+        private void ReplanBlockedStretch()
+        {
+            if (Time.time < routeStretchCheckAt || navPlan is not { } plan || navPathIndex >= plan.Count) return;
+
+            routeStretchCheckAt = Time.time + RouteStretchCheckInterval;
+            Vector3 start = FloorUnderNpc();
+            Vector3 waypoint = plan[navPathIndex];
+            if (plan.IsForced(navPathIndex) || Mathf.Abs(start.y - plan.FloorY(navPathIndex)) > WaypointAdvanceMaxDeltaY ||
+                IsStandingOnRoute(start) || NavGraph.CanReachEntry(start, waypoint))
+            {
+                return;
+            }
+
+            Vector3 goal = plan[plan.Count - 1];
+            Vector3? cameFrom = navPathIndex >= 1 ? plan[navPathIndex - 1] : null;
+            NavPath? fresh = NavGraph.FindPath(start, goal, cameFrom, null, settings.MayGoOutside);
+            if (fresh is not { Count: > 0 } replanned)
+            {
+                // The stuck recovery still skips the waypoint; this only asks again later.
+                routeStretchCheckAt = Time.time + RouteStretchRetryAfterFail;
+                if (NpcLog.Level >= 1)
+                {
+                    NpcLog.Log.LogInfo($"[ai] No way from here to waypoint {navPathIndex + 1}/{plan.Count} at {waypoint:0.0}, " +
+                                       $"and no new route to {goal:0.0} - keeping the plan");
+                }
+                return;
+            }
+
+            navPlan = replanned;
+            navPathIndex = 0;
+            if (NpcLog.Level >= 1)
+            {
+                NpcLog.Log.LogInfo($"[ai] No way from {start:0.0} to waypoint {waypoint:0.0} any more - " +
+                                   $"planned again to {goal:0.0} ({replanned.Count} waypoints)");
+            }
         }
 
         /// <summary>

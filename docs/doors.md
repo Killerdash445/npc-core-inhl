@@ -155,7 +155,7 @@ open, only the player's side once it shuts. An agent follows the same door rule
 | the room the agent is in | always; kept on if the game switches it off |
 | the room behind the nearest doorway (within 3.5 m) | only while that door is open |
 | both rooms of a door | the agent opens it |
-| any room its brain asks for | `NpcAgent.LoadRoom`: YourBuddy's errands, and every room holding a sell station |
+| any room its brain asks for | `NpcAgent.LoadRoom`: YourBuddy's errands, a selling run's station among them |
 
 The room the agent is in is the side of the nearest doorway it last stood on (`TryInnerSide`),
 the game's own test for the player. An agent that has never crossed a doorway (spawned, restored from a

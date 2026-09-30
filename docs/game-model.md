@@ -106,8 +106,9 @@ ship's content is off. Found with the scene YAML (`m_MethodName: SetContentEnabl
 
 The `Autopilot` trigger is room content (`SpaceShip/Rooms/Front_M00/Front_M00Content/Autopilot`).
 Reactivating it fires `OnTriggerEnter`, which sets nearby `SpaceObject`s to `Optimized`
-(`Autopilot.cs:204`). So anything that turns the bridge back on mid-spacewalk unloads what the player
-went out to. An NPC aboard must hold no room loaded while the ship is unloaded.
+(`Autopilot.cs:204`) - only while `DockedStation` is empty. So anything that turns the bridge back on
+mid-spacewalk unloads what the player went out to; docked, it unloads nothing. An NPC aboard must
+hold no room loaded while the undocked ship is unloaded.
 
 ### The player's ship is rebuilt by its upgrade stage
 

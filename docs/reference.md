@@ -58,6 +58,7 @@ See [agent.md §5](agent.md#5-walks).
 | `NavPathRecalcInterval` | 0.22 s | minimum time between a Pursue's replans |
 | `NavPathGoalDrift` | 1.5 m | goal movement that invalidates a plan |
 | `NavPathOnRouteRadius` | 1.2 m | [still on the route](invariants.md#commitment-skips-on-route) |
+| `RouteStretchCheckInterval` / `RouteStretchRetryAfterFail` | 1 s / 5 s | [SimpleAdvance's stretch check](invariants.md#a-blocked-stretch-is-planned-again); the wait after it found no new route |
 | `WaypointReachedXZ` / `WaypointReached3D` | 0.55 / 0.65 m | [dual advance](invariants.md#waypoint-advance-is-dual) radii |
 | `WalkerOriginAboveFeet` | 0.5 m | where the 3D radius is measured from: the player's origin |
 | `WaypointAdvanceMaxDeltaY` | 0.5 m | same-deck cap for the XZ advance; larger differences make a stair leg |
@@ -182,7 +183,7 @@ See [a-fenced-sell-station-is-not-somewhere-to-stand](invariants.md#a-fenced-sel
 | Constant | Value | Meaning |
 |---|---|---|
 | `SellStationClearance` | 0.35 m | margin around the zone and fences no NPC stands in |
-| `SellPenRefresh` | 10 s | how often fence footprints are re-measured |
+| `SellPenRefresh` | 10 s | how often fence footprints are re-measured; also at once when a station's room switches |
 | `PenDepthBelow` | 2 m | how far below the pen's colliders a point still counts as in it |
 
 ### Talk window - `NpcInteraction.cs`

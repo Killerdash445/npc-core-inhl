@@ -199,7 +199,7 @@ A brain's `Steer` returns one of these, or its own step. Each checks the step-of
 | `Wander(owner, avoid)` | to random nodes of `owner` (null: any), a short pause between; `avoid` turns nodes down |
 | `Stay()` | nothing but the step-off |
 | `HeadAlongPlan(speed)` | a plan the brain committed, after `AdvancePlan`, while `HasPlanLeft` |
-| `SimpleAdvance()` | a committed plan straight from waypoint to waypoint, without the stair or deck rules |
+| `SimpleAdvance()` | a committed plan straight from waypoint to waypoint, without the stair or deck rules; planned again from here when the NPC can no longer walk to its waypoint ([a-blocked-stretch-is-planned-again](invariants.md#a-blocked-stretch-is-planned-again)) |
 | `TryStepOff(out v)` | the step-off under way, if any |
 
 The plan: `CommitPlan(plan, fresh)` walks it from the top (`fresh` forgets a skipped waypoint),

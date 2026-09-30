@@ -345,7 +345,7 @@ namespace NPC.Core.Agents
 
         /// <summary>
         /// Why a room must stay on: an NPC or the player is in it, the player is outside (a station shows
-        /// every room then), a mod keeps it (a sell station's), or an open door looks into it.
+        /// every room then), a mod keeps it (`NpcRooms`), or an open door looks into it.
         /// </summary>
         private string? ReasonToKeepLoaded(Room room)
         {
@@ -682,7 +682,7 @@ namespace NPC.Core.Agents
         }
 
         /// <summary>
-        /// Freezes an NPC aboard while the game unloads the player's ship for a spacewalk,
+        /// Freezes an NPC aboard while the game unloads the undocked player's ship for a spacewalk,
         /// before any room goes dark. docs/invariants.md#an-unloaded-ship-parks-the-npc
         /// </summary>
         internal void ParkWithShip()
@@ -693,7 +693,7 @@ namespace NPC.Core.Agents
             Hands.Drop("the ship is unloading");
             brain.OnInterrupted("the ship is unloading");
             gameObject.SetActive(false);
-            NpcLog.Log.LogInfo("[ai] Player ship unloaded (a spacewalk, or you went into the station) - parked aboard");
+            NpcLog.Log.LogInfo("[ai] Player ship unloaded for a spacewalk - parked aboard");
         }
 
         internal void UnparkFromShip()
