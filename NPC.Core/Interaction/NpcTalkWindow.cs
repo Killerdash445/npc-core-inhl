@@ -54,7 +54,8 @@ namespace NPC.Core.Interaction
         {
             _title = title.ToUpperInvariant();
             _showCommands = false;
-            _scroll = Vector2.zero;
+            // At the newest line: lines added while it was shut must not leave it scrolled to the top.
+            ScrollToEnd();
         }
 
         internal static void ScrollToEnd() => _scroll.y = float.MaxValue;
@@ -92,7 +93,12 @@ namespace NPC.Core.Interaction
         private void OnGUI()
         {
             NpcInteraction.Talk? talk = NpcInteraction.Open;
-            if (talk == null) return;
+            if (talk == null)
+            {
+                // Draw-only: docs/invariants.md#read-only-panels-build-on-repaint
+                if (Event.current.type == EventType.Repaint) DrawSpeech();
+                return;
+            }
 
             TalkSkin.Ensure();
 
@@ -161,6 +167,55 @@ namespace NPC.Core.Interaction
             if (GUI.GetNameOfFocusedControl() != "npcTalkInput") GUI.FocusControl("npcTalkInput");
         }
 
+        // ------------------------------------------------------------------
+        // Speech: a line an NPC says unprompted. docs/interaction.md#3-lines-from-the-mod
+        // ------------------------------------------------------------------
+
+        private static string _speaker = "";
+        private static string _speech = "";
+        private static float _speechUntil;
+        private const float SpeechFade = 0.6f;
+
+        /// <summary>
+        /// Shows `text` under the speaker's name for a time that grows with its length.
+        /// </summary>
+        internal static void Say(string speaker, string text)
+        {
+            _speaker = speaker.ToUpperInvariant();
+            _speech = text;
+            _speechUntil = Time.time + Mathf.Clamp(2f + text.Length * 0.06f, 3f, 8f);
+        }
+
+        /// <summary>
+        /// The speech panel: the talk window's look, low in the middle of the screen, no controls.
+        /// </summary>
+        private static void DrawSpeech()
+        {
+            float left = _speechUntil - Time.time;
+            if (left <= 0f || _speech.Length == 0) return;
+
+            TalkSkin.Ensure();
+            Color was = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, Mathf.Clamp01(left / SpeechFade));
+            const float pad = 10f;
+            float w = Mathf.Round(Mathf.Clamp(Screen.width * 0.4f, 420f, 760f));
+            float titleH = 26f * TalkSkin.UiScale;
+            LineContent.text = _speech;
+            float textH = Mathf.Ceil(TalkSkin.Body.CalcHeight(LineContent, w - pad * 2f - 20f));
+            float h = Mathf.Round(titleH + textH + pad * 3f + 16f);
+            float x = Mathf.Round((Screen.width - w) * 0.5f);
+            float y = Mathf.Round(Screen.height * 0.8f - h);
+
+            TalkSkin.Panel(new Rect(x, y, w, h));
+            Rect title = new(x + pad, y + pad, w - pad * 2f, titleH);
+            TalkSkin.Panel(title);
+            GUI.Label(title, _speaker, TalkSkin.Title);
+            Rect body = new(x + pad, title.yMax + pad, w - pad * 2f, textH + 16f);
+            TalkSkin.Panel(body);
+            GUI.Label(new Rect(body.x + 10f, body.y + 8f, body.width - 20f, textH), _speech, TalkSkin.Body);
+            GUI.color = was;
+        }
+
         private static void Submit(NpcInteraction.Talk talk)
         {
             string text = _input;
@@ -171,7 +226,8 @@ namespace NPC.Core.Interaction
         private static void DrawLog(Rect body, List<string> lines)
         {
             Rect inner = new(body.x + 10f, body.y + 8f, body.width - 20f, body.height - 16f);
-            float width = inner.width - 18f;
+            float bar = TalkSkin.ScrollBarWidth;
+            float width = inner.width - bar - 8f;
             float total = 4f;
             foreach (string line in lines)
             {
@@ -179,7 +235,9 @@ namespace NPC.Core.Interaction
                 total += TalkSkin.Body.CalcHeight(LineContent, width) + 4f;
             }
 
-            _scroll = GUI.BeginScrollView(inner, _scroll, new Rect(0f, 0f, width, total));
+            // Unity's own bars are hidden (GUIStyle.none); TalkSkin.ScrollBar draws the game's kind.
+            _scroll = GUI.BeginScrollView(inner, _scroll, new Rect(0f, 0f, width, total), false, false,
+                GUIStyle.none, GUIStyle.none);
             float cursor = 0f;
             foreach (string line in lines)
             {
@@ -190,6 +248,12 @@ namespace NPC.Core.Interaction
                 cursor += lh + 4f;
             }
             GUI.EndScrollView();
+
+            if (total > inner.height)
+            {
+                _scroll.y = TalkSkin.ScrollBar(new Rect(inner.xMax - bar, inner.y, bar, inner.height), _scroll.y,
+                    inner.height, total);
+            }
         }
 
         /// <summary>

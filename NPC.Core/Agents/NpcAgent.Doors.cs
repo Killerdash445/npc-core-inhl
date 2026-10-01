@@ -182,6 +182,24 @@ namespace NPC.Core.Agents
         }
 
         /// <summary>
+        /// Takes on an open door someone else opened, as if the NPC had opened it from where it stands: it
+        /// shuts it behind itself once it has walked through and is clear of the doorway. False for a shut,
+        /// locked, airlock or password door, or with doors not its to open. docs/doors.md
+        /// </summary>
+        public bool CloseBehind(Gate gate)
+        {
+            if (IsDead || gate == null || !gate.Opened || gate.Locked || !settings.CanOpenDoors) return false;
+
+            if (NpcDoors.IsAirlockGate(gate) || NpcDoors.IsPasswordGate(gate)) return false;
+
+            // A close already owed from an earlier walk keeps the side it was armed from, which may be
+            // the side it is heading to now: it would never count as crossed. Armed afresh from here.
+            pendingDoorCloses.RemoveAll(p => p.Gate == gate);
+            ArmDoorClose(gate);
+            return true;
+        }
+
+        /// <summary>
         /// Registers a door the NPC just opened; re-arming only refreshes the timer.
         /// `alreadyCrossed` is for a door it blocked rather than opened. docs/doors.md
         /// </summary>

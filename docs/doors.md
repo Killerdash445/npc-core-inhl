@@ -206,6 +206,9 @@ close-behind below applies to it too.
 
 `pendingDoorCloses` is a list of doors the agent owes a close
 ([pending-closes-are-a-list](invariants.md#pending-closes-are-a-list)), worked in slow phase 3.
+A door it opens is armed there. A brain can add a door someone else left open with
+`CloseBehind(gate)`: it is armed as if the agent had opened it from where it stands. Shut, locked,
+airlock and password doors are refused, as is any door while `CanOpenDoors` is off.
 
 - **Dropped** when the gate is destroyed, already shut, locked, `CanOpenDoors` is off, or 90 s have
   passed since arming.

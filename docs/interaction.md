@@ -55,6 +55,10 @@ Each conversation keeps its own log of the last 80 lines, which lives as long as
 registered. The commands page draws the mod's `Commands` in two columns fitted to the panel; each is
 sent as if typed.
 
+The log's scrollbar is the panel's own (`TalkSkin.ScrollBar`): a flat dark track and a square white
+block, `ScrollBarWidth` = 4 UI pixels wide. Unity's rounded default is hidden (`GUIStyle.none`). Drag the
+block, or click the track to jump; the mouse wheel is still the scroll view's.
+
 **Font:** the game's `Pixellari` (the AssistantBot dialog font), found among loaded fonts by name and
 retried every 5 s; Consolas until then. Logged once when found. Title `TitleSize` 32, text `TextSize`
 24 - change `TextSize` to rescale. No synthesized bold/italic: it smears a pixel font.
@@ -76,3 +80,21 @@ IMGUI notes: build styles inside `OnGUI` (they read `GUI.skin`), and give genera
 `HideFlags.HideAndDontSave` or they are lost on scene load. This panel has controls, so it runs on
 every event and must **not** be gated on `Repaint`
 ([read-only-panels-build-on-repaint](invariants.md#read-only-panels-build-on-repaint)).
+
+---
+
+## 3. Lines from the mod
+
+`NpcInteraction.AddLine(conversation, text, asPlayer)` writes into an NPC's log while the window is
+shut, or while it is open. The NPC can remark on something unprompted, and the player finds it the next
+time they open the window. With `asPlayer` the line is drawn as the player's (`$`). An empty log gets the
+greeting first, so opening it still starts with a greeting. `IsOpenOn(conversation)` says whether the
+window is open on that NPC.
+
+`NpcInteraction.Speak(conversation, text)` is a line the NPC says out loud: `AddLine`, plus a speech
+panel in the window's look, low in the middle of the screen, with no controls and no input taken. It
+wraps, stays 3-8 s by length and fades. It is draw-only, so it is built on `Repaint`
+([read-only-panels-build-on-repaint](invariants.md#read-only-panels-build-on-repaint)). With the window
+open on that NPC, only the log shows it.
+
+The window always opens at the newest line, and every new line scrolls it there.

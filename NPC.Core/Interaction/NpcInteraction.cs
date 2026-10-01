@@ -328,6 +328,40 @@ namespace NPC.Core.Interaction
             if (talk != null && (NpcRegistry.IsGone(talk.Conversation.Npc) || talk.Conversation.Npc.IsDead)) Close();
         }
 
+        /// <summary>
+        /// Adds a line to an NPC's log without a conversation: its own words, or with `asPlayer` a line drawn
+        /// as the player's. An empty log gets the greeting first, as opening it would. False when the
+        /// conversation is not registered. docs/interaction.md#3-lines-from-the-mod
+        /// </summary>
+        public static bool AddLine(INpcConversation conversation, string text, bool asPlayer)
+        {
+            Talk? talk = conversation != null ? Find(conversation) : null;
+            if (talk == null || string.IsNullOrEmpty(text)) return false;
+
+            if (talk.Lines.Count == 0) Say(talk, talk.Conversation.Greeting);
+            if (asPlayer) Echo(talk, text);
+            else Say(talk, text);
+            return true;
+        }
+
+        /// <summary>
+        /// An NPC says a line unprompted: shown in a speech panel low on the screen, and added to its log.
+        /// With the window open on it, the log alone shows it. False when the conversation is not
+        /// registered. docs/interaction.md#3-lines-from-the-mod
+        /// </summary>
+        public static bool Speak(INpcConversation conversation, string text)
+        {
+            if (!AddLine(conversation, text, false)) return false;
+
+            if (!IsOpenOn(conversation)) NpcTalkWindow.Say(conversation.Npc.Name, text);
+            return true;
+        }
+
+        /// <summary>
+        /// Whether the window is open on this conversation now.
+        /// </summary>
+        public static bool IsOpenOn(INpcConversation conversation) => Open != null && Open.Conversation == conversation;
+
         internal static void Say(Talk talk, string text) => Append(talk, "> " + text);
 
         internal static void Echo(Talk talk, string text) => Append(talk, "$ " + text);

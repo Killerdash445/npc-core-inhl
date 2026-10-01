@@ -37,6 +37,7 @@ NPC.Core.Agents.NpcAgent.Asleep.set -> void
 NPC.Core.Agents.NpcAgent.BodyBlocked(UnityEngine.Vector3 dir, float distance) -> bool
 NPC.Core.Agents.NpcAgent.CancelStepOff() -> void
 NPC.Core.Agents.NpcAgent.ClearMoveTarget() -> void
+NPC.Core.Agents.NpcAgent.CloseBehind(Gate! gate) -> bool
 NPC.Core.Agents.NpcAgent.CommitPlan(NPC.Core.Navigation.NavPath plan, bool fresh) -> void
 NPC.Core.Agents.NpcAgent.Controller.get -> UnityEngine.CharacterController?
 NPC.Core.Agents.NpcAgent.CurrentOwner.get -> string?
@@ -263,7 +264,10 @@ static NPC.Core.Agents.NpcAgent.IsPlayerInSpace(Space.Player! player) -> bool
 static NPC.Core.Agents.NpcHands.ColliderBounds(UnityEngine.GameObject! root, out UnityEngine.Bounds bounds) -> bool
 static NPC.Core.Agents.NpcIdentity.operator !=(NPC.Core.Agents.NpcIdentity? left, NPC.Core.Agents.NpcIdentity? right) -> bool
 static NPC.Core.Agents.NpcIdentity.operator ==(NPC.Core.Agents.NpcIdentity? left, NPC.Core.Agents.NpcIdentity? right) -> bool
+static NPC.Core.Interaction.NpcInteraction.AddLine(NPC.Core.Interaction.INpcConversation! conversation, string! text, bool asPlayer) -> bool
 static NPC.Core.Interaction.NpcInteraction.IsOpen.get -> bool
+static NPC.Core.Interaction.NpcInteraction.IsOpenOn(NPC.Core.Interaction.INpcConversation! conversation) -> bool
+static NPC.Core.Interaction.NpcInteraction.Speak(NPC.Core.Interaction.INpcConversation! conversation, string! text) -> bool
 static NPC.Core.Interaction.NpcInteraction.Register(NPC.Core.Interaction.INpcConversation! conversation) -> bool
 static NPC.Core.Interaction.NpcInteraction.Unregister(NPC.Core.Interaction.INpcConversation! conversation) -> void
 static NPC.Core.Navigation.NavGraph.CanReachEntry(UnityEngine.Vector3 start, UnityEngine.Vector3 waypoint) -> bool

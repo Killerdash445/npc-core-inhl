@@ -17,6 +17,7 @@ namespace NPC.Core.Interaction
         private static readonly Color Tan = new(0.91f, 0.65f, 0.30f, 1f);
         private static readonly Color Text = new(0.90f, 0.90f, 0.90f, 1f);
         private static readonly Color Dim = new(0.55f, 0.55f, 0.55f, 1f);
+        private static readonly Color Track = new(0.22f, 0.22f, 0.22f, 1f);
 
         private const float BorderWidth = 2f;
         /// <summary>
@@ -49,6 +50,9 @@ namespace NPC.Core.Interaction
         private static Texture2D _fill;
         private static Texture2D _border;
         private static Texture2D _accept;
+        private static Texture2D _track;
+        private static Texture2D _thumb;
+        private static Texture2D _thumbHot;
         private static bool _built;
         private static Font? _pixelFont;
         private static float _fontRetryAt;
@@ -82,6 +86,9 @@ namespace NPC.Core.Interaction
             _fill = Solid(Fill);
             _border = Solid(Border);
             _accept = Solid(Accept);
+            _track = Solid(Track);
+            _thumb = Solid(Text);
+            _thumbHot = Solid(Color.white);
 
             // Until the game's own face turns up: the terminals are monospaced, Consolas is the
             // safe Windows pick, and a null font simply falls back to the IMGUI default.
@@ -231,6 +238,60 @@ namespace NPC.Core.Interaction
             GUI.DrawTexture(new Rect(r.x, r.y, BorderWidth, r.height), edge);
             GUI.DrawTexture(new Rect(r.xMax - BorderWidth, r.y, BorderWidth, r.height), edge);
         }
+
+        // ------------------------------------------------------------------
+        // The log's scrollbar: Unity's rounded default replaced by the game's flat, square, white kind.
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Whole UI pixels, so the blocks stay crisp at every scale.
+        /// </summary>
+        internal static float ScrollBarWidth => 4f * UiScale;
+
+        private static float _scrollGrab;
+
+        /// <summary>
+        /// A dark track with a white block for the visible part: drag the block, or click the track to
+        /// jump there. Returns the scroll offset; the mouse wheel stays the scroll view's.
+        /// </summary>
+        internal static float ScrollBar(Rect track, float value, float visible, float total)
+        {
+            int id = GUIUtility.GetControlID(FocusType.Passive);
+            float max = Mathf.Max(0f, total - visible);
+            float thumbH = Mathf.Round(Mathf.Clamp(track.height * visible / total, track.width * 3f, track.height));
+            float travel = track.height - thumbH;
+            Rect thumb = new(track.x, track.y + Mathf.Round(max > 0f ? travel * Mathf.Clamp01(value / max) : 0f),
+                track.width, thumbH);
+
+            Event e = Event.current;
+            switch (e.GetTypeForControl(id))
+            {
+                case EventType.MouseDown when e.button == 0 && track.Contains(e.mousePosition):
+                    // On the block it is held where grabbed; on the track it jumps to centre there.
+                    _scrollGrab = thumb.Contains(e.mousePosition) ? e.mousePosition.y - thumb.y : thumbH * 0.5f;
+                    GUIUtility.hotControl = id;
+                    value = ScrollAt(e.mousePosition.y, track, travel, max);
+                    e.Use();
+                    break;
+                case EventType.MouseDrag when GUIUtility.hotControl == id:
+                    value = ScrollAt(e.mousePosition.y, track, travel, max);
+                    e.Use();
+                    break;
+                case EventType.MouseUp when GUIUtility.hotControl == id:
+                    GUIUtility.hotControl = 0;
+                    e.Use();
+                    break;
+                case EventType.Repaint:
+                    GUI.DrawTexture(track, _track);
+                    bool hot = GUIUtility.hotControl == id || thumb.Contains(e.mousePosition);
+                    GUI.DrawTexture(thumb, hot ? _thumbHot : _thumb);
+                    break;
+            }
+            return value;
+        }
+
+        private static float ScrollAt(float mouseY, Rect track, float travel, float max) =>
+            travel > 0f ? Mathf.Clamp01((mouseY - _scrollGrab - track.y) / travel) * max : 0f;
 
         /// <summary>
         /// Screen pixels per UI pixel: 2 at 1080p, 3 at 1440p, 4 at 4K. The game's buttons draw their
