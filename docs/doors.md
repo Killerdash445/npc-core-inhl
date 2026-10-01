@@ -61,6 +61,9 @@ of every mod knows every code. The codes belong to the running game: a new `Game
 empty. NPC.Core saves them in `<save>.npccore` and restores them once the loaded scene is ready
 ([architecture.md §4](architecture.md#4-files-on-disk)).
 
+A mod can let one agent open every pin-code door for a while with `NpcAgent.KnowsEveryCode`; no code
+is learned, and other NPCs are not affected.
+
 `PinPanelFor(gate)` gives the gate's panel, which is also where the NPC must stand to use it. An NPC
 opens a pin-code door only through that panel
 ([an-npc-only-knows-codes-it-was-told](invariants.md#an-npc-only-knows-codes-it-was-told)).

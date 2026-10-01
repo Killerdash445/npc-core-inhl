@@ -744,14 +744,17 @@ and docking gates are checked first, so they stay routable.
 ### an-npc-only-knows-codes-it-was-told
 
 **Rule.** An NPC opens a pin-code door only with `PinCode.ForceValidate()`, on the gate's own panel
-(`NpcDoors.PinPanelFor`), when that panel's code is one the player gave (`NpcDoors.KnownCodes`). Never
-`PinCode.Interact(null)`.
+(`NpcDoors.PinPanelFor`), when that panel's code is one the player gave (`NpcDoors.KnownCodes`), or while
+a mod sets that agent's `KnowsEveryCode`. Never `PinCode.Interact(null)`. The routing cache holds only the
+player's codes; `SegmentBlockedByDoor` lets the acting agent's own master key through.
 
 **Why.** `Interact(null)` is the monster's branch: a random guess stored in the monster's save
 data. `ForceValidate` fires the panel's own `OnValidated → Gate.InvokeOpen`, so the door opens through
-the game's wiring and a walker's close-behind works unchanged.
+the game's wiring and a walker's close-behind works unchanged. A master key in the shared cache would
+open the doors to every NPC for a second.
 
-**Enforced in.** `NpcDoors.MayOpen` / `BlocksRouting` (`CodeKnown`); the walker's panel code
+**Enforced in.** `NpcDoors.MayOpen` / `BlocksRouting` (`CodeKnown`), `SegmentBlockedByDoor`
+(`ActingKnowsEveryCode`); the walker's panel code
 (`NpcAgent.TryUnlockPasswordGate`).
 
 ### keep-electricitypanelgate-excluded

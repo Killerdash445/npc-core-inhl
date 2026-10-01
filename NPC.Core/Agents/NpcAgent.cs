@@ -39,6 +39,11 @@ namespace NPC.Core.Agents
         /// No AI at all, gravity kept: shut in a cryo capsule, say, until the mod wakes it.
         /// </summary>
         public bool Asleep { get; set; }
+        /// <summary>
+        /// Opens every pin-code door as if told its code, while set: a mod's scare, never the player's
+        /// codes. docs/invariants.md#an-npc-only-knows-codes-it-was-told
+        /// </summary>
+        public bool KnowsEveryCode { get; set; }
         public float MoveSpeed { get; set; } = 3.5f;
 
         /// <summary>

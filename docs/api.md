@@ -220,6 +220,7 @@ where to go. Register the agent, not the brain. The whole contract: [agent.md](a
 | `NpcAgent.Asleep`, `CurrentOwner`, `RideOwner`, `DescribeSurroundings`, and the rest | [agent.md §5](agent.md#5-walks) lists every member a brain uses |
 | `NpcAgent.Hands` (`NpcHands`) | one held item ([agent.md §7](agent.md#7-hands)) |
 | `NpcAgent.CloseBehind(gate)` | an open door to shut once it has walked through ([doors.md §7](doors.md#7-closing-behind-itself)) |
+| `NpcAgent.KnowsEveryCode` | opens every pin-code door without the code while set ([doors.md](doors.md#password-doors)) |
 
 ---
 

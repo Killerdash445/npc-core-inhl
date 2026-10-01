@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using NPC.Core.Agents;
 using NPC.Core.Navigation;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -201,7 +202,7 @@ namespace NPC.Core.World
             DoorPinCode? panel = PinPanelFor(gate);
             if (panel == null) return true;
 
-            return CodeKnown(GameInternals.DoorPinCodeAccess.GetPinCode(panel));
+            return ActingKnowsEveryCode || CodeKnown(GameInternals.DoorPinCodeAccess.GetPinCode(panel));
         }
 
         /// <summary>
@@ -306,9 +307,13 @@ namespace NPC.Core.World
             RefreshImpassableGates();
             if (ImpassableGates.Count == 0) return false;
 
+            // The cache is everyone's: a code only the acting NPC knows is let through here, not there.
+            bool everyCode = ActingKnowsEveryCode;
             foreach (Gate gate in ImpassableGates)
             {
                 if (gate == null) continue;
+
+                if (everyCode && !gate.Locked && IsPasswordGate(gate)) continue;
 
                 if (FlatDistanceToSegment(gate.transform.position, a, b) > DoorBroadPhaseRadius) continue;
 
@@ -574,6 +579,11 @@ namespace NPC.Core.World
         }
 
         private static bool CodeKnown(int? code) => code.HasValue && Codes().Contains(code.Value);
+
+        /// <summary>
+        /// The NPC running now opens pin-code doors without the code (NpcAgent.KnowsEveryCode).
+        /// </summary>
+        private static bool ActingKnowsEveryCode => NpcRegistry.ActingNpc is NpcAgent { KnowsEveryCode: true };
 
         // ------------------------------------------------------------------
         // Closes an NPC issued: docs/invariants.md#npc-closes-must-not-move-the-player

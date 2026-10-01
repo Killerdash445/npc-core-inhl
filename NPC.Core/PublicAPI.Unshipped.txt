@@ -34,6 +34,8 @@ NPC.Core.Agents.NpcAgent.Air.get -> Environment?
 NPC.Core.Agents.NpcAgent.WaypointOverdue(out float budget) -> bool
 NPC.Core.Agents.NpcAgent.Asleep.get -> bool
 NPC.Core.Agents.NpcAgent.Asleep.set -> void
+NPC.Core.Agents.NpcAgent.KnowsEveryCode.get -> bool
+NPC.Core.Agents.NpcAgent.KnowsEveryCode.set -> void
 NPC.Core.Agents.NpcAgent.BodyBlocked(UnityEngine.Vector3 dir, float distance) -> bool
 NPC.Core.Agents.NpcAgent.CancelStepOff() -> void
 NPC.Core.Agents.NpcAgent.ClearMoveTarget() -> void
