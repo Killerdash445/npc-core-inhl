@@ -81,6 +81,7 @@ the player, the other NPCs and the body's own controller passing through its con
 | `DebugVisuals` | off | debug lines, and the level-3 obstacle report |
 
 `Asleep` stops the agent as `ai_disable` does, gravity kept: YourBuddy's buddy in its cryo capsule.
+It still closes the doors it left with `LeaveDoors` ([doors.md §7](doors.md#7-closing-behind-itself)).
 
 ---
 
@@ -90,7 +91,7 @@ the player, the other NPCs and the body's own controller passing through its con
 
 ```
 dead, or no player          → nothing
-ai_disable or Asleep        → gravity only
+ai_disable or Asleep        → gravity only; Asleep, the doors it left close
 SlowUpdate                  → one phase, then brain.SlowPhase(phase)
 being caught                → hold still
 brain.OverrideMovement      → the brain's own move, applied as it is

@@ -64,8 +64,8 @@ NPC, through `INpc`:
 every NPC mod shares ([logging.md](logging.md)).
 
 `NpcConsole.Register(owner, name, run)` adds a console command; `NpcConsole.Print` answers in the
-console; `NpcConsole.Alias` keeps an old name; `NpcConsole.IsOpen` tells overlays and hotkeys to step
-aside ([one-owner-per-console-command](invariants.md#one-owner-per-console-command)).
+console; `NpcConsole.Toggle(args, index, current)` reads an on/off argument; `NpcConsole.Alias` keeps an
+old name; `NpcConsole.IsOpen` tells overlays and hotkeys to step aside ([one-owner-per-console-command](invariants.md#one-owner-per-console-command)).
 
 `SceneScan.MayRescan` and `SceneScan.ThisFrame<T>()` budget whole-scene sweeps for every mod at once
 ([scene-sweeps-are-budgeted](invariants.md#scene-sweeps-are-budgeted)).
@@ -220,6 +220,7 @@ where to go. Register the agent, not the brain. The whole contract: [agent.md](a
 | `NpcAgent.Asleep`, `CurrentOwner`, `RideOwner`, `DescribeSurroundings`, and the rest | [agent.md §5](agent.md#5-walks) lists every member a brain uses |
 | `NpcAgent.Hands` (`NpcHands`) | one held item ([agent.md §7](agent.md#7-hands)) |
 | `NpcAgent.CloseBehind(gate)` | an open door to shut once it has walked through ([doors.md §7](doors.md#7-closing-behind-itself)) |
+| `NpcAgent.LeaveDoors()` | the body leaves the world: the doors it owes, and the one it stands in, close without it walking through ([doors.md §7](doors.md#7-closing-behind-itself)) |
 | `NpcAgent.KnowsEveryCode` | opens every pin-code door without the code while set ([doors.md](doors.md#password-doors)) |
 
 ---
@@ -253,7 +254,9 @@ diff.
 
 - **Adding:** list the member in `Unshipped` (the IDE fix does it, or
   `dotnet format analyzers NPC.Core/NPC.Core.csproj --diagnostics RS0016`), and document it here.
-- **Changing or removing** a shipped member breaks every mod built against it. Do it only with a new
-  major version, and say so in the release notes.
+- **Changing or removing** a shipped member breaks every mod built against it. That includes adding a
+  parameter with a default: a mod compiled against the old signature gets `MissingMethodException`.
+  Keep the old signature as a forwarding overload marked `[EditorBrowsable(Never)]` (see
+  `NavGraph.FindPath`). Drop it only with a new major version, and say so in the release notes.
 - **Releasing:** move `Unshipped` into `Shipped`.
 - Not meant for mods? Make it `internal`. Public is a promise.

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using BepInEx.Configuration;
 using NPC.Core.Navigation;
@@ -72,7 +71,7 @@ namespace NPC.Core
                 bool wasOn = target == "monster" ? NpcMonster.MonsterDisabled
                     : target == "npc" ? NpcMonster.NpcsDisabled
                     : NpcMonster.NpcsDisabled && NpcMonster.MonsterDisabled;
-                bool on = Toggle(args, 1, wasOn);
+                bool on = NpcConsole.Toggle(args, 1, wasOn);
 
                 if (target != "monster") NpcMonster.NpcsDisabled = on;
 
@@ -83,27 +82,10 @@ namespace NPC.Core
             });
             NpcConsole.Register(Owner, "ai_notarget", delegate (string[] args)
             {
-                NpcMonster.NoTarget = Toggle(args, 0, NpcMonster.NoTarget);
+                NpcMonster.NoTarget = NpcConsole.Toggle(args, 0, NpcMonster.NoTarget);
                 NpcMonster.Apply();
                 NpcConsole.Print("AI: " + NpcMonster.Describe());
             });
-        }
-
-        /// <summary>
-        /// "on"/"off"/"true"/"false" at args[index], or a flip when it is absent.
-        /// </summary>
-        private static bool Toggle(string[] args, int index, bool current)
-        {
-            if (args.Length <= index) return !current;
-
-            string value = args[index];
-            if (bool.TryParse(value, out bool parsed)) return parsed;
-
-            if (value.Equals("on", StringComparison.OrdinalIgnoreCase)) return true;
-
-            if (value.Equals("off", StringComparison.OrdinalIgnoreCase)) return false;
-
-            return !current;
         }
 
         private static void Node(string[] args)

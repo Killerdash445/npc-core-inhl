@@ -809,7 +809,8 @@ fixes. Keep stepping out; the 90 s cap ends it.
 ### close-only-what-you-walked-through
 
 **Rule.** A pending close fires only once the agent is on the **opposite side** of the gate from
-where it opened it. `NoteCloseFailed` entries start already crossed.
+where it opened it. `NoteCloseFailed` entries start already crossed; `LeaveDoors` marks every entry
+crossed, since a body out of the world can never cross and the door would stay open.
 
 **Why.** A 3 s timer from opening shut doors in the NPC's face when it had not got through yet,
 then it reopened them, forever.

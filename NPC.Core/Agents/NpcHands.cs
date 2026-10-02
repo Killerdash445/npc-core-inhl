@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using NPC.Core.World;
 using UnityEngine;
 
@@ -56,6 +57,14 @@ namespace NPC.Core.Agents
         /// How far ahead of the body the item is carried: further for a big one.
         /// </summary>
         public float Forward { get; private set; } = HoldForward;
+
+        /// <summary>
+        /// The 1.0.0 signature, kept so mods built against it still load: docs/api.md#9-changing-the-api
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [Obsolete("Pass the transform a carried item belongs under (NpcAgent.ItemParentAt).")]
+        public NpcHands(MonoBehaviour body, Collider? blocker, Func<float, Vector3> groundPos, Func<Room?> room)
+            : this(body, blocker, groundPos, () => room() is Room r && r != null ? r.ContentParent : null) { }
 
         private Transform Body => body.transform;
 

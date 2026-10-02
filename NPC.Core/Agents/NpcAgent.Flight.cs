@@ -392,19 +392,8 @@ namespace NPC.Core.Agents
         private bool FlightBlocked(Vector3 dir, float distance)
         {
             FlightCapsuleAt(BodyCentre, out Vector3 bottom, out Vector3 top, out float radius);
-            int count = Physics.CapsuleCastNonAlloc(bottom, top, radius, dir, FlightHits, distance, ProbeLayers,
-                QueryTriggerInteraction.Ignore);
-            if (FlightHitsTruncated(count)) return true;
-
-            for (int i = 0; i < count; i++)
-            {
-                RaycastHit hit = FlightHits[i];
-                // Started inside it: the controller depenetrates that itself.
-                if (hit.distance < 0.02f || PassesThrough(hit.collider, hit.point)) continue;
-
-                return true;
-            }
-            return false;
+            return AnySolidFlightHit(Physics.CapsuleCastNonAlloc(bottom, top, radius, dir, FlightHits, distance, ProbeLayers,
+                QueryTriggerInteraction.Ignore));
         }
 
         /// <summary>
@@ -416,18 +405,24 @@ namespace NPC.Core.Agents
             float length = line.magnitude;
             if (length < 0.05f) return true;
 
-            int count = Physics.SphereCastNonAlloc(from, cc.radius * 0.8f, line / length, FlightHits, length, ProbeLayers,
-                QueryTriggerInteraction.Ignore);
-            if (FlightHitsTruncated(count)) return false;
+            return !AnySolidFlightHit(Physics.SphereCastNonAlloc(from, cc.radius * 0.8f, line / length, FlightHits, length, ProbeLayers,
+                QueryTriggerInteraction.Ignore));
+        }
+
+        /// <summary>
+        /// One of the first `count` FlightHits stops the body; a full buffer counts as one.
+        /// </summary>
+        private bool AnySolidFlightHit(int count)
+        {
+            if (FlightHitsTruncated(count)) return true;
 
             for (int i = 0; i < count; i++)
             {
                 RaycastHit hit = FlightHits[i];
-                if (hit.distance < 0.02f || PassesThrough(hit.collider, hit.point)) continue;
-
-                return false;
+                // Started inside it: the controller depenetrates that itself.
+                if (hit.distance >= 0.02f && !PassesThrough(hit.collider, hit.point)) return true;
             }
-            return true;
+            return false;
         }
 
         /// <summary>

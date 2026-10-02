@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
@@ -699,7 +700,15 @@ namespace NPC.Core.Navigation
         /// Only Outdoor nodes when `outdoors`, only the others when not: an NPC picks on its own
         /// side of the airlocks. docs/invariants.md#an-airlock-is-crossed-by-its-cycle
         /// </summary>
-        public static Vector3 RandomNode(string? owner = null, bool outdoors = false)
+        public static Vector3 RandomNode(string? owner = null, bool outdoors = false) => RandomNodeCore(owner, outdoors);
+
+        /// <summary>
+        /// The 1.0.0 signature, kept so mods built against it still load: docs/api.md#9-changing-the-api
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static Vector3 RandomNode(string? owner) => RandomNodeCore(owner, false);
+
+        private static Vector3 RandomNodeCore(string? owner, bool outdoors)
         {
             EnsureLoaded();
             OwnerSnapshot owners = new();
@@ -1874,6 +1883,16 @@ namespace NPC.Core.Navigation
         /// </summary>
         public static NavPath? FindPath(Vector3 start, Vector3 end, Vector3? cameFromPos = null,
             Vector3? avoidEntry = null, bool mayGoOutside = false)
+            => FindPathGuarded(start, end, cameFromPos, avoidEntry, mayGoOutside);
+
+        /// <summary>
+        /// The 1.0.0 signature, kept so mods built against it still load: docs/api.md#9-changing-the-api
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static NavPath? FindPath(Vector3 start, Vector3 end, Vector3? cameFromPos, Vector3? avoidEntry)
+            => FindPathGuarded(start, end, cameFromPos, avoidEntry, false);
+
+        private static NavPath? FindPathGuarded(Vector3 start, Vector3 end, Vector3? cameFromPos, Vector3? avoidEntry, bool mayGoOutside)
         {
             // The working sets are shared; a nested search would clear the outer one's.
             if (_inFindPath)

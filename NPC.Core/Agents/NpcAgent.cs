@@ -140,6 +140,10 @@ namespace NPC.Core.Agents
             /// </summary>
             public Vector3 OpenedFrom;
             public bool Crossed;
+            /// <summary>
+            /// The body left the world (LeaveDoors): closed even while Asleep, its body never in the way.
+            /// </summary>
+            public bool Left;
         }
         private readonly List<PendingDoorClose> pendingDoorCloses = [];
 
@@ -402,6 +406,9 @@ namespace NPC.Core.Agents
             // ai_disable, or asleep: everything off, gravity kept so it does not float.
             if (NpcMonster.NpcsDisabled || Asleep)
             {
+                // Asleep, it still closes the doors it left behind: LeaveDoors.
+                if (Asleep && !NpcMonster.NpcsDisabled) UpdateDoorCloseBehind(onlyLeft: true);
+
                 ApplyMovement(Vector3.zero, false);
                 UpdateAnimation(Vector3.zero, false, player);
                 return;

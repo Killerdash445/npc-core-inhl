@@ -24,7 +24,7 @@ namespace NPC.Core
     public sealed class NpcCorePlugin : BaseUnityPlugin
     {
         public const string Guid = "com.bytenull1.npccore";
-        public const string Version = "1.0.0";
+        public const string Version = "1.0.1";
 
         /// <summary>
         /// The mod NPC.Core was extracted from; its settings for what moved here are imported once.

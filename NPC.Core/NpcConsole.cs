@@ -80,6 +80,24 @@ namespace NPC.Core
         }
 
         /// <summary>
+        /// A switch argument: "on"/"off"/"true"/"false" at args[index], or `current` flipped when it is absent
+        /// or unreadable.
+        /// </summary>
+        public static bool Toggle(string[] args, int index, bool current)
+        {
+            if (args.Length <= index) return !current;
+
+            string value = args[index];
+            if (bool.TryParse(value, out bool parsed)) return parsed;
+
+            if (value.Equals("on", StringComparison.OrdinalIgnoreCase)) return true;
+
+            if (value.Equals("off", StringComparison.OrdinalIgnoreCase)) return false;
+
+            return !current;
+        }
+
+        /// <summary>
         /// From the ConsoleMenu.Init postfix: every command registered so far goes into this console.
         /// </summary>
         internal static void Attach(ConsoleMenu console)

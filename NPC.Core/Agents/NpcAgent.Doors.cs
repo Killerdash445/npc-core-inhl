@@ -200,6 +200,45 @@ namespace NPC.Core.Agents
         }
 
         /// <summary>
+        /// For a body taken out of the world (hidden, put elsewhere), which will never walk through its doors:
+        /// every close it owes counts as crossed, and the open door it stands in is taken on, whoever opened
+        /// it. They close as usual, Asleep too, its body never in the way. Returns how many it owes.
+        /// docs/doors.md#7-closing-behind-itself
+        /// </summary>
+        public int LeaveDoors()
+        {
+            if (IsDead || !settings.CanOpenDoors) return 0;
+
+            if (DoorStoodIn() is { } stoodIn && !pendingDoorCloses.Exists(p => p.Gate == stoodIn)) ArmDoorClose(stoodIn);
+
+            foreach (PendingDoorClose pending in pendingDoorCloses)
+            {
+                pending.Crossed = true;
+                pending.Left = true;
+                pending.CloseAt = Mathf.Min(pending.CloseAt, Time.time + 0.5f);
+            }
+            if (pendingDoorCloses.Count > 0) NpcLog.Log.LogInfo($"[ai] Leaving {pendingDoorCloses.Count} door(s) to close behind it");
+
+            return pendingDoorCloses.Count;
+        }
+
+        /// <summary>
+        /// An open room door within DoorwaySelfRadius, as CloseBehind would take on; null when none.
+        /// </summary>
+        private Gate? DoorStoodIn()
+        {
+            foreach (EntryDetector detector in NpcDoors.Detectors)
+            {
+                if (detector == null || NpcDoors.DoorOf(detector) is not { Opened: true, Locked: false } gate) continue;
+
+                if ((transform.position - gate.transform.position).sqrMagnitude >= DoorwaySelfRadius * DoorwaySelfRadius) continue;
+
+                if (!NpcDoors.IsAirlockGate(gate) && !NpcDoors.IsPasswordGate(gate)) return gate;
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Registers a door the NPC just opened; re-arming only refreshes the timer.
         /// `alreadyCrossed` is for a door it blocked rather than opened. docs/doors.md
         /// </summary>
@@ -283,7 +322,7 @@ namespace NPC.Core.Agents
         /// Retries matter because a close issued into a blocker is undone by the door
         /// itself. Doors the NPC did not open are not tracked - see docs/doors.md.
         /// </summary>
-        private void UpdateDoorCloseBehind()
+        private void UpdateDoorCloseBehind(bool onlyLeft = false)
         {
             if (IsDead || pendingDoorCloses.Count == 0) return;
 
@@ -300,7 +339,7 @@ namespace NPC.Core.Agents
                     continue;
                 }
 
-                if (Time.time < pending.CloseAt) continue;
+                if (Time.time < pending.CloseAt || (onlyLeft && !pending.Left)) continue;
 
                 if (!HasCrossed(pending, gate))
                 {
@@ -310,7 +349,7 @@ namespace NPC.Core.Agents
 
                 // Closing into a blocker just feeds the AntiCrasher, which re-opens the
                 // door and burns an attempt. docs/doors.md
-                bool selfBlocking = (transform.position - gate.transform.position).sqrMagnitude <
+                bool selfBlocking = !pending.Left && (transform.position - gate.transform.position).sqrMagnitude <
                                     DoorwaySelfRadius * DoorwaySelfRadius;
                 Collider? blocker = selfBlocking ? null : DoorwayBlocker(gate);
 

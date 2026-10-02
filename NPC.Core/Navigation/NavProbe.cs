@@ -451,15 +451,20 @@ namespace NPC.Core.Navigation
             height = anyLeaf ? high - low : 0f;
         }
 
+        /// <summary>
+        /// One of the eight corners of `b`, by the bits of `index` (x, y, z).
+        /// </summary>
+        private static Vector3 Corner(Bounds b, int index) => new(
+            (index & 1) == 0 ? b.min.x : b.max.x,
+            (index & 2) == 0 ? b.min.y : b.max.y,
+            (index & 4) == 0 ? b.min.z : b.max.z);
+
         private static void Accumulate(Bounds bounds, Vector3 origin, Vector3 across,
             ref float acrossReach, ref float low, ref float high, ref bool any)
         {
             for (int corner = 0; corner < 8; corner++)
             {
-                Vector3 p = new(
-                    (corner & 1) == 0 ? bounds.min.x : bounds.max.x,
-                    (corner & 2) == 0 ? bounds.min.y : bounds.max.y,
-                    (corner & 4) == 0 ? bounds.min.z : bounds.max.z);
+                Vector3 p = Corner(bounds, corner);
                 acrossReach = Mathf.Max(acrossReach, Mathf.Abs(Vector3.Dot(p - origin, across)));
                 if (!any) { low = p.y; high = p.y; any = true; }
                 else { low = Mathf.Min(low, p.y); high = Mathf.Max(high, p.y); }
@@ -557,11 +562,7 @@ namespace NPC.Core.Navigation
                 Bounds w = c.bounds;
                 for (int corner = 0; corner < 8; corner++)
                 {
-                    Vector3 p = new(
-                        (corner & 1) == 0 ? w.min.x : w.max.x,
-                        (corner & 2) == 0 ? w.min.y : w.max.y,
-                        (corner & 4) == 0 ? w.min.z : w.max.z);
-                    Vector3 lp = t.InverseTransformPoint(p);
+                    Vector3 lp = t.InverseTransformPoint(Corner(w, corner));
                     if (any)
                     {
                         local.Encapsulate(lp);
@@ -642,35 +643,21 @@ namespace NPC.Core.Navigation
         private const int AuditMaxPairs = 64;
 
         /// <summary>
-        /// Debug-level-2 audit naming every collider the gate-frame rule ignores and the
-        /// bound that admitted it. Covers all branches on purpose. docs/probes.md
-        /// </summary>
-        private static void AuditGateFrameIgnore(Collider collider, Gate gate, float across, float allowed)
-        {
-            if (NpcLog.Level < 2 || !AuditDue(collider, gate, false)) return;
-
-            NpcLog.Log.LogInfo(
-                "[probe] Gate-frame rule ignoring a hit on '" + collider.gameObject.name + "' " +
-                across.ToString("0.00") + "m across gate '" + gate.gameObject.name +
-                "' (opening " + allowed.ToString("0.00") + "m) - if that point is wall " +
-                "rather than doorway, this gate's opening is too wide.");
-        }
-
-        /// <summary>
-        /// The other half of the audit: a hit that sits in the opening but whose line
-        /// passes through the wall beside it. This is the doorway the NPC will now
-        /// walk around rather than through, so it is as worth reading as an ignore.
+        /// Debug-level-2 audit of the gate-frame rule, both ways: every collider it ignores and the
+        /// bound that admitted it, and every hit it keeps because the line only grazes the jamb (the
+        /// doorway the NPC now walks around). docs/probes.md,
         /// docs/invariants.md#a-doorway-is-crossed-not-grazed
         /// </summary>
-        private static void AuditGateFrameGraze(Collider collider, Gate gate, float across, float allowed)
+        private static void AuditGateFrame(Collider collider, Gate gate, float across, float allowed, bool graze)
         {
-            if (NpcLog.Level < 2 || !AuditDue(collider, gate, true)) return;
+            if (NpcLog.Level < 2 || !AuditDue(collider, gate, graze)) return;
 
             NpcLog.Log.LogInfo(
-                "[probe] Gate-frame rule keeping a hit on '" + collider.gameObject.name + "' " +
+                "[probe] Gate-frame rule " + (graze ? "keeping" : "ignoring") + " a hit on '" + collider.gameObject.name + "' " +
                 across.ToString("0.00") + "m across gate '" + gate.gameObject.name +
-                "' (opening " + allowed.ToString("0.00") + "m): the line only grazes " +
-                "the jamb and crosses the wall elsewhere.");
+                "' (opening " + allowed.ToString("0.00") + "m)" + (graze
+                    ? ": the line only grazes the jamb and crosses the wall elsewhere."
+                    : " - if that point is wall rather than doorway, this gate's opening is too wide."));
         }
 
         /// <summary>
@@ -856,11 +843,11 @@ namespace NPC.Core.Navigation
                 // docs/invariants.md#a-doorway-is-crossed-not-grazed
                 if (chord is { } line && !ChordCrossesOpening(line, g))
                 {
-                    AuditGateFrameGraze(collider, g.Gate, across, g.Opening.HalfWidth);
+                    AuditGateFrame(collider, g.Gate, across, g.Opening.HalfWidth, graze: true);
                     continue;
                 }
 
-                AuditGateFrameIgnore(collider, g.Gate, across, g.Opening.HalfWidth);
+                AuditGateFrame(collider, g.Gate, across, g.Opening.HalfWidth, graze: false);
                 return true;
             }
             return false;
@@ -1013,21 +1000,38 @@ namespace NPC.Core.Navigation
             Vector3 kneeB = KneeAt(b);
             if (Mathf.Abs(kneeB.y - kneeA.y) > maxDeltaY) return false;
 
+            if ((b - a).magnitude < GroundSampleStep) return true;
+
+            return FloorChordClear(a, b, kneeA, kneeB, KneeHeight, GroundSampleStep, walkableClear: true);
+        }
+
+        private static Vector3 KneeAt(Vector3 p) => AboveFloor(p, KneeHeight);
+
+        private static Vector3 AboveFloor(Vector3 p, float height)
+        {
+            TryFloorHeight(p, out float floorY);
+            return new Vector3(p.x, floorY + height, p.z);
+        }
+
+        /// <summary>
+        /// Casts segment by segment from `fromAt` to `toAt` (a and b lifted `height` over their floors),
+        /// through points `stepLen` apart that follow the floor. A gate-frame hit never blocks; with
+        /// `walkableClear`, neither does a surface flat enough to walk on.
+        /// </summary>
+        private static bool FloorChordClear(Vector3 a, Vector3 b, Vector3 fromAt, Vector3 toAt, float height, float stepLen,
+            bool walkableClear)
+        {
             Vector3 delta = b - a;
-            float dist = delta.magnitude;
-            if (dist < GroundSampleStep) return true;
-
-            Vector3 dir = delta / dist;
-
-            int steps = Mathf.Max(1, Mathf.CeilToInt(dist / GroundSampleStep));
+            Vector3 dir = delta.normalized;
+            int steps = Mathf.Max(1, Mathf.CeilToInt(delta.magnitude / stepLen));
             // The whole line, not this sample: the sub-cast that grazes a jamb usually
             // stops short of the door's own plane.
-            ProbeChord chord = new(kneeA, kneeB);
-            Vector3 previous = kneeA;
+            ProbeChord chord = new(fromAt, toAt);
+            Vector3 previous = fromAt;
             for (int s = 1; s <= steps; s++)
             {
-                Vector3 knee = s == steps ? kneeB : KneeAt(a + dir * (GroundSampleStep * s));
-                Vector3 seg = knee - previous;
+                Vector3 point = s == steps ? toAt : AboveFloor(a + dir * (stepLen * s), height);
+                Vector3 seg = point - previous;
                 float segLen = seg.magnitude;
                 if (segLen > 0.01f)
                 {
@@ -1037,7 +1041,7 @@ namespace NPC.Core.Navigation
                     {
                         if (IsEdgeProbeIgnorable(LosHits[i].collider, ContactPoint(LosHits[i], previous), chord)) continue;
                         // A tread or a ramp underfoot is not a wall.
-                        if (LosHits[i].distance > 0f &&
+                        if (walkableClear && LosHits[i].distance > 0f &&
                             Vector3.Angle(LosHits[i].normal, Vector3.up) <= MaxWalkableSlope)
                         {
                             continue;
@@ -1045,15 +1049,9 @@ namespace NPC.Core.Navigation
                         return false;
                     }
                 }
-                previous = knee;
+                previous = point;
             }
             return true;
-        }
-
-        private static Vector3 KneeAt(Vector3 p)
-        {
-            TryFloorHeight(p, out float floorY);
-            return new Vector3(p.x, floorY + KneeHeight, p.z);
         }
 
         /// <summary>
@@ -1256,11 +1254,7 @@ namespace NPC.Core.Navigation
         /// <summary>
         /// EyeHeight above the floor under the given position.
         /// </summary>
-        private static Vector3 EyeAt(Vector3 p)
-        {
-            TryFloorHeight(p, out float floorY);
-            return new Vector3(p.x, floorY + EyeHeight, p.z);
-        }
+        private static Vector3 EyeAt(Vector3 p) => AboveFloor(p, EyeHeight);
 
         /// <summary>
         /// Thin floor-hugging line of sight with a climb cap, cast segment by segment
@@ -1276,37 +1270,10 @@ namespace NPC.Core.Navigation
             Vector3 eyeB = EyeAt(b);
             if (Mathf.Abs(eyeB.y - eyeA.y) > maxDeltaY) return false;
 
-            Vector3 delta = b - a;
-            float dist = delta.magnitude;
+            float dist = (b - a).magnitude;
             if (dist < 0.05f) return true;
 
-            Vector3 dir = delta / dist;
-
-            float stepLen = Mathf.Clamp(dist / 8f, 1f, 4f);
-            int steps = Mathf.Max(1, Mathf.CeilToInt(dist / stepLen));
-            // The whole line, not this sample: the sub-cast that grazes a jamb usually
-            // stops short of the door's own plane.
-            ProbeChord chord = new(eyeA, eyeB);
-            Vector3 prevEye = eyeA;
-            for (int s = 1; s <= steps; s++)
-            {
-                Vector3 eye = s == steps ? eyeB : EyeAt(a + dir * (stepLen * s));
-                Vector3 seg = eye - prevEye;
-                float segLen = seg.magnitude;
-                if (segLen > 0.01f)
-                {
-                    int count = Physics.RaycastNonAlloc(prevEye, seg / segLen, LosHits, segLen,
-                        ProbeLayers, QueryTriggerInteraction.Ignore);
-                    for (int i = 0; i < count; i++)
-                    {
-                        if (IsEdgeProbeIgnorable(LosHits[i].collider, ContactPoint(LosHits[i], prevEye), chord)) continue;
-
-                        return false;
-                    }
-                }
-                prevEye = eye;
-            }
-            return true;
+            return FloorChordClear(a, b, eyeA, eyeB, EyeHeight, Mathf.Clamp(dist / 8f, 1f, 4f), walkableClear: false);
         }
 
         /// <summary>

@@ -217,6 +217,10 @@ airlock and password doors are refused, as is any door while `CanOpenDoors` is o
   passed since arming.
 - **Not fired** until the agent has crossed to the far side
   ([close-only-what-you-walked-through](invariants.md#close-only-what-you-walked-through)).
+- **Left** with `LeaveDoors()`, for a body taken out of the world (hidden, put elsewhere) that will never
+  cross: every pending close counts as crossed, and the open door within `DoorwaySelfRadius` is taken
+  on as `CloseBehind` would, whoever opened it. These still close while the agent is `Asleep`, and its
+  own body never counts as in the doorway. Anything else in it still defers the close.
 - **Deferred** when the doorway is occupied:
 
 | Situation | Response |

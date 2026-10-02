@@ -33,6 +33,8 @@ namespace NPC.Core.Navigation
 
         private readonly List<LineRenderer> nodeVisLines = [];
         private readonly List<LineRenderer> connVisLines = [];
+        // A node is drawn as a cross along these.
+        private static readonly Vector3[] CrossAxes = [Vector3.up, Vector3.right, Vector3.forward];
         private readonly List<(Vector3 a, Vector3 b)> edgeLines = [];
         private Material? lrMaterial = null;
 
@@ -230,7 +232,7 @@ namespace NPC.Core.Navigation
             UpdateVisualization();
         }
 
-        private LineRenderer GetLineRenderer(List<LineRenderer> pool, int index, float width, Color color)
+        private void DrawLine(List<LineRenderer> pool, int index, float width, Color color, Vector3 from, Vector3 to)
         {
             if (lrMaterial == null)
             {
@@ -255,7 +257,9 @@ namespace NPC.Core.Navigation
             result.endWidth = width;
             result.startColor = color;
             result.endColor = color;
-            return result;
+            result.positionCount = 2;
+            result.SetPosition(0, from);
+            result.SetPosition(1, to);
         }
 
         private void HideUnusedLines(List<LineRenderer> pool, int usedCount)
@@ -306,24 +310,7 @@ namespace NPC.Core.Navigation
 
                 Color color = NodeColor(i);
                 float size = i == selectedNode ? 0.25f : 0.12f;
-
-                // Vertical
-                LineRenderer lr1 = GetLineRenderer(nodeVisLines, nodeVisIndex++, 0.05f, color);
-                lr1.positionCount = 2;
-                lr1.SetPosition(0, p - Vector3.up * size);
-                lr1.SetPosition(1, p + Vector3.up * size);
-
-                // Horizontal
-                LineRenderer lr2 = GetLineRenderer(nodeVisLines, nodeVisIndex++, 0.05f, color);
-                lr2.positionCount = 2;
-                lr2.SetPosition(0, p - Vector3.right * size);
-                lr2.SetPosition(1, p + Vector3.right * size);
-
-                // Forward
-                LineRenderer lr3 = GetLineRenderer(nodeVisLines, nodeVisIndex++, 0.05f, color);
-                lr3.positionCount = 2;
-                lr3.SetPosition(0, p - Vector3.forward * size);
-                lr3.SetPosition(1, p + Vector3.forward * size);
+                foreach (Vector3 axis in CrossAxes) DrawLine(nodeVisLines, nodeVisIndex++, 0.05f, color, p - axis * size, p + axis * size);
             }
 
             int connVisIndex = 0;
@@ -343,10 +330,7 @@ namespace NPC.Core.Navigation
                         continue;
                     }
 
-                    LineRenderer lr = GetLineRenderer(connVisLines, connVisIndex++, 0.025f, Color.yellow);
-                    lr.positionCount = 2;
-                    lr.SetPosition(0, a + Vector3.up * 0.5f);
-                    lr.SetPosition(1, b + Vector3.up * 0.5f);
+                    DrawLine(connVisLines, connVisIndex++, 0.025f, Color.yellow, a + Vector3.up * 0.5f, b + Vector3.up * 0.5f);
                 }
             }
 
@@ -402,7 +386,7 @@ namespace NPC.Core.Navigation
             text += "\n" + KeyName(NpcCorePlugin.ConfigEditorLinksKey) + ": Toggle connections " + (showConnections ? "[ON]" : "[OFF]");
             text += "\n" + KeyName(NpcCorePlugin.ConfigEditorForceLinkKey) + ": Link nodes (2 presses)";
             text += "\n" + KeyName(NpcCorePlugin.ConfigEditorClearLinksKey) + ": Clear the node's links";
-            text += "\n" + KeyName(NpcCorePlugin.ConfigEditorTypeKey) + ": Node type ground/stair";
+            text += "\n" + KeyName(NpcCorePlugin.ConfigEditorTypeKey) + ": Node type ground/stair/outdoor";
             text += "\n" + KeyName(NpcCorePlugin.ConfigEditorSaveKey) + ": Save nodes";
 
             GUI.Label(new Rect(x + 10f, y + 22f, boxW - 20f, boxH - 30f), text);
