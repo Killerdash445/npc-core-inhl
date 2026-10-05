@@ -260,3 +260,9 @@ diff.
   `NavGraph.FindPath`). Drop it only with a new major version, and say so in the release notes.
 - **Releasing:** move `Unshipped` into `Shipped`.
 - Not meant for mods? Make it `internal`. Public is a promise.
+
+### Optional command-page navigation
+
+`NPC.Core.Interaction.INpcCommandPage.KeepCommandsOpen` is read after a command-button
+answer. Return true to redraw the command list in place, or false to show the log.
+It is optional: `INpcConversation` has no new required members.

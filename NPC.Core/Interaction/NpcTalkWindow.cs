@@ -274,8 +274,9 @@ namespace NPC.Core.Interaction
                 Rect row = new(body.x + 18f + col * (colW + gap), body.y + 14f + rowIdx * rowH, colW, rowH);
                 if (!GUI.Button(row, names[i], TalkSkin.Command)) continue;
 
-                _showCommands = false;
                 NpcInteraction.Submit(talk, names[i]);
+                _showCommands = talk.Conversation is INpcCommandPage { KeepCommandsOpen: true };
+                return;
             }
 
             Rect back = new(body.x + 18f, body.yMax - 52f, 130f, 40f);
