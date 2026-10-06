@@ -24,17 +24,22 @@ namespace NPC.Core.Agents
         /// </summary>
         public string? PlanReach(ReachTask task, out NavPath plan)
         {
-            plan = default;
-            if (!FindReachNode(task)) return "no nav node near it has a clear walk to it";
-
-            // To the node itself, so the whole way is the graph's: docs/agent.md#6-walking-into-reach
-            NavPath? found = NavGraph.FindPath(FloorUnderNpc(), task.Node, mayGoOutside: task.MayGoOutside);
-            if (found is not { Count: > 0 })
+            NavPath chosen = default;
+            Vector3 start = FloorUnderNpc();
+            bool hasApproach = false, blockedByDoor = false;
+            bool reachable = FindReachNode(task, node =>
             {
-                return NavGraph.LastPathBlockedByDoor ? "a door I cannot open is in the way" : "there is no path to it";
-            }
-            plan = found.Value;
-            return null;
+                hasApproach = true;
+                NavPath? found = NavGraph.FindPath(start, node, mayGoOutside: task.MayGoOutside);
+                blockedByDoor |= NavGraph.LastPathBlockedByDoor;
+                if (found is not { Count: > 0 } route || (route[route.Count - 1] - node).sqrMagnitude > .25f) return false;
+                chosen = route;
+                return true;
+            });
+            plan = chosen;
+            if (reachable) return null;
+            if (!hasApproach) return "no nav node near it has a clear walk to it";
+            return blockedByDoor ? "a door I cannot open is in the way" : "there is no path to it";
         }
 
         /// <summary>
@@ -42,13 +47,20 @@ namespace NPC.Core.Agents
         /// and see the target from there. Fills the task's Node and StandPoint. The graph then routes
         /// to that node; only the last stretch is a straight walk, and it has been probed.
         /// </summary>
-        public static bool FindReachNode(ReachTask task)
+        public static bool FindReachNode(ReachTask task) => FindReachNode(task, null);
+
+        private static bool FindReachNode(ReachTask task, System.Func<Vector3, bool>? reachable)
         {
             Vector3 targetPos = task.TargetPoint;
             NavGraph.CollectActiveNodes(ReachNodeBuffer);
 
-            float bestSq = ReachNodeRadius * ReachNodeRadius;
-            bool found = false;
+            float DistanceSq(Vector3 node)
+            {
+                Vector3 delta = targetPos - node;
+                delta.y = 0f;
+                return delta.sqrMagnitude;
+            }
+            ReachNodeBuffer.Sort((a, b) => DistanceSq(a).CompareTo(DistanceSq(b)));
             foreach (Vector3 node in ReachNodeBuffer)
             {
                 // An Outdoor node is not a stand point for a walk that may not go outside.
@@ -57,7 +69,7 @@ namespace NPC.Core.Agents
                 Vector3 toTarget = targetPos - node;
                 toTarget.y = 0f;
                 float flatSq = toTarget.sqrMagnitude;
-                if (flatSq >= bestSq || flatSq < 0.0001f) continue;
+                if (flatSq >= ReachNodeRadius * ReachNodeRadius || flatSq < 0.0001f) continue;
 
                 float nodeFloor = NavGraph.FloorAt(node);
                 float rise = targetPos.y - nodeFloor;
@@ -72,15 +84,14 @@ namespace NPC.Core.Agents
 
                     Vector3 eye = new(stand.x, nodeFloor + ReachEyeHeight, stand.z);
                     if (!NavProbe.CanSee(eye, targetPos, task.Own, out _)) continue;
+                    if (reachable != null && !reachable(node)) break;
 
                     task.Node = node;
                     task.StandPoint = stand;
-                    bestSq = flatSq;
-                    found = true;
-                    break;
+                    return true;
                 }
             }
-            return found;
+            return false;
         }
 
         public bool InReach(ReachTask task)
@@ -152,7 +163,7 @@ namespace NPC.Core.Agents
                 ? NavGraph.FindPath(FloorUnderNpc(), task.Node, mayGoOutside: task.MayGoOutside)
                 : null;
             task.Replans++;
-            if (plan is { Count: > 0 })
+            if (plan is { Count: > 0 } route && (route[route.Count - 1] - task.Node).sqrMagnitude <= .25f)
             {
                 NpcLog.Log.LogInfo($"[ai] Route to {task.Name} ended {toNode.magnitude:0.0}m short of node " +
                                    $"{task.Node:0.0} - planning again ({task.Replans} of {ReachMaxReplans})");
