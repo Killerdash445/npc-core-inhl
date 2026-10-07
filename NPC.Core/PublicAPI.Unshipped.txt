@@ -1,2 +1,4 @@
 #nullable enable
 NPC.Core.Agents.NpcAgent.LeaveDoors() -> int
+NPC.Core.Interaction.INpcCommandPage
+NPC.Core.Interaction.INpcCommandPage.KeepCommandsOpen.get -> bool

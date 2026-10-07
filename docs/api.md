@@ -199,6 +199,13 @@ player typing anything ([interaction.md §3](interaction.md#3-lines-from-the-mod
 whether the window is open on that NPC. `NpcInteraction.Speak(conversation, text)` says a line out loud: the
 log, and a speech panel on screen.
 
+### Optional command-page navigation
+
+`NPC.Core.Interaction.INpcCommandPage.KeepCommandsOpen` is read after a command-button
+answer. Return true to redraw the command list in place, or false to show the log.
+It is optional: `INpcConversation` has no new required members.
+The Back button always returns to the log, including replies from settings buttons.
+
 ---
 
 ## 7. Walking - `NPC.Core.Agents`

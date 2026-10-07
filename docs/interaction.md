@@ -98,3 +98,5 @@ wraps, stays 3-8 s by length and fades. It is draw-only, so it is built on `Repa
 open on that NPC, only the log shows it.
 
 The window always opens at the newest line, and every new line scrolls it there.
+
+For in-place command-page refresh, see [optional command-page navigation](api.md#optional-command-page-navigation).
