@@ -21,6 +21,8 @@ namespace NPC.Core.Agents
         private bool lifeThreat = false;
         private bool currentlyInSpace = false;
         private Environment? currentEnvironmentRef = null;
+        // Until the first UpdateEnvironment, a null environment means "not read yet", not vacuum.
+        private bool airSensed = false;
 
         // Life threat: HealthSystem.Tick's numbers. docs/game-model.md#atmosphere-kills-by-the-players-rule
         private const int LifeThreatLethal = 10;
@@ -446,6 +448,7 @@ namespace NPC.Core.Agents
             if (env == null && (hasKnownRoom || IsEnclosed())) env = FindNearestEnvironment();
 
             if (!currentlyInSpace) currentEnvironmentRef = env;
+            airSensed = true;
         }
 
         /// <summary>
@@ -875,6 +878,8 @@ namespace NPC.Core.Agents
         private void AtmosphereTick()
         {
             if (!settings.Mortal || !settings.BreathesAir || IsDead || Asleep || NpcMonster.NpcsDisabled) return;
+            // docs/invariants.md#air-is-read-before-it-is-counted
+            if (!airSensed) return;
 
             using NpcRegistry.ActingScope _ = NpcRegistry.Acting(this);
             // Counted one tick late, as the player's is: the buff reaches HealthSystem through BuffBar.

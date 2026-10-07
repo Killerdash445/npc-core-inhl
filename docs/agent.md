@@ -119,7 +119,8 @@ and set only by a plan walk ([a-stair-leg-is-walked-not-improvised](invariants.m
 `LateUpdate` moves a held item after the body has moved.
 
 Atmosphere damage is not a phase: `AtmosphereTick` listens to `GameManager.OnTick` while the agent is
-enabled ([game-model.md](game-model.md#atmosphere-kills-by-the-players-rule)).
+enabled ([game-model.md](game-model.md#atmosphere-kills-by-the-players-rule)), and only once phase 0
+has read the air ([air-is-read-before-it-is-counted](invariants.md#air-is-read-before-it-is-counted)).
 
 ### Slow phases
 

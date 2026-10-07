@@ -946,6 +946,16 @@ room. The answer is tri-state: no floor to judge by is not "not the ship".
 
 **Enforced in.** `NpcVessels.FloorOwner`; each `INpcLifeform.IsAboardPlayerShip`.
 
+### air-is-read-before-it-is-counted
+
+**Rule.** `AtmosphereTick` counts no threat until `UpdateEnvironment` has run once. Before that, no
+environment means "not read yet", not vacuum.
+
+**Why.** A game tick can land before the first slow phase 0. The air then counted as vacuum (threat
+100), `LifeInDanger` turned true, and a fresh buddy suited up and took the suit off a second later.
+
+**Enforced in.** `NpcAgent.AtmosphereTick`, `airSensed` set in `UpdateEnvironment`.
+
 ### an-npc-rides-its-own-floor
 
 **Rule.** An agent is parented to the frame of the floor under it - a station's `contentParent`,
