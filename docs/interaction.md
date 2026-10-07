@@ -99,7 +99,4 @@ open on that NPC, only the log shows it.
 
 The window always opens at the newest line, and every new line scrolls it there.
 
-A conversation can implement `INpcCommandPage`. After a command button is submitted,
-`KeepCommandsOpen = true` refreshes `Commands` in place; false returns to the message log.
-Existing `INpcConversation` implementations keep their original behaviour. The Back button
-always returns to the log, including short replies from settings buttons.
+For in-place command-page refresh, see [optional command-page navigation](api.md#optional-command-page-navigation).
